@@ -1,0 +1,30 @@
+[workspace]
+members = [
+    "crates/otpuac-admin",
+    "crates/otpuac-core",
+    "crates/otpuac-provider-rs",
+    "crates/otpuac-service",
+    "crates/otpuac-setup",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+base64 = "0.22"
+clap = { version = "4.5", features = ["derive"] }
+data-encoding = "2.6"
+hmac = "0.12"
+rand = "0.8"
+rpassword = "7.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha1 = "0.10"
+subtle = "2.6"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+windows-sys = "0.59"
+zeroize = "1.8"
