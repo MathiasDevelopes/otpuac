@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Resolve package version
         id: version
@@ -49,7 +49,7 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -98,7 +98,7 @@ jobs:
           $lines | Set-Content -Path "dist\SHA256SUMS.txt" -Encoding ascii
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: otpuac-${{ steps.version.outputs.version }}-windows-x64
           path: |
