@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to package, for example 1.0.0 or v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  TARGET: x86_64-pc-windows-msvc
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve package version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          } else {
+            $version = "${{ github.ref_name }}"
+          }
+
+          $version = $version.Trim()
+          if ($version.StartsWith("v")) {
+            $version = $version.Substring(1)
+          }
+
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$') {
+            throw "Version '$version' is not a valid SemVer version."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ env.TARGET }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.TARGET }}-
+
+      - name: Run tests
+        shell: pwsh
+        run: cargo test --locked --workspace --target $env:TARGET --verbose
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: .\scripts\build-installer.ps1 -Target $env:TARGET -AppVersion "${{ steps.version.outputs.version }}" -Locked
+
+      - name: Package portable binaries
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $releaseDir = "target\$env:TARGET\release"
+          $portableDir = "dist\otpuac-$version-windows-x64"
+
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+          Copy-Item "$releaseDir\otpuac-admin.exe" $portableDir
+          Copy-Item "$releaseDir\otpuac-service.exe" $portableDir
+          Copy-Item "$releaseDir\otpuac-setup.exe" $portableDir
+          Copy-Item "$releaseDir\otpuac_provider_rs.dll" $portableDir
+
+          Compress-Archive -Path "$portableDir\*" -DestinationPath "dist\OTPUAC-$version-windows-x64.zip" -Force
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path "dist" -File | Where-Object { $_.Extension -in ".exe", ".zip" }
+          $lines = foreach ($file in $files) {
+            $hash = Get-FileHash -Algorithm SHA256 $file.FullName
+            "$($hash.Hash.ToLowerInvariant())  $($file.Name)"
+          }
+
+          $lines | Set-Content -Path "dist\SHA256SUMS.txt" -Encoding ascii
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: otpuac-${{ steps.version.outputs.version }}-windows-x64
+          path: |
+            dist/OTPUAC-Setup-${{ steps.version.outputs.version }}-x64.exe
+            dist/OTPUAC-${{ steps.version.outputs.version }}-windows-x64.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = "${{ steps.version.outputs.version }}"
+          $assets = @(
+            "dist\OTPUAC-Setup-$version-x64.exe",
+            "dist\OTPUAC-$version-windows-x64.zip",
+            "dist\SHA256SUMS.txt"
+          )
+
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag @assets --clobber
+          } else {
+            gh release create $tag @assets --title "OTPUAC $version" --notes "Windows release artifacts for OTPUAC $version."
+          }

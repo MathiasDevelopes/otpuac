@@ -2,7 +2,8 @@ param(
     [string]$Target = "x86_64-pc-windows-msvc",
     [string]$Configuration = "release",
     [string]$AppVersion = "0.1.0",
-    [string]$InnoSetupCompiler
+    [string]$InnoSetupCompiler,
+    [switch]$Locked
 )
 
 Set-StrictMode -Version Latest
@@ -40,7 +41,12 @@ function Resolve-InnoSetupCompiler {
     throw "Install Inno Setup 6 or pass -InnoSetupCompiler <path-to-ISCC.exe>."
 }
 
-cargo build --release --target $Target
+$cargoArgs = @("build", "--release", "--target", $Target)
+if ($Locked) {
+    $cargoArgs += "--locked"
+}
+
+cargo @cargoArgs
 
 $artifactsDir = Join-Path "target\$Target" $Configuration
 $requiredArtifacts = @(
