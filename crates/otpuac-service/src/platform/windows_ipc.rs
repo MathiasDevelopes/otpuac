@@ -1,9 +1,11 @@
 use crate::audit;
 use crate::state::RuntimeState;
 use crate::unlock::{handle_unlock_request_with_limiter, RateLimiter};
+#[cfg(debug_assertions)]
+use otpuac_core::ProviderUnlockResponse;
 use otpuac_core::{
-    decode_frame, encode_frame, paths::service_state_path, ProviderUnlockRequest,
-    ProviderUnlockResponse, Result, MAX_IPC_MESSAGE_BYTES, PIPE_NAME,
+    decode_frame, encode_frame, paths::service_state_path, ProviderUnlockRequest, Result,
+    MAX_IPC_MESSAGE_BYTES, PIPE_NAME,
 };
 use std::ffi::OsStr;
 use std::iter::once;
@@ -409,9 +411,9 @@ fn get_overlapped_result(
     Ok(transferred as usize)
 }
 
-fn validate_client(handle: HANDLE, policy: ClientPolicy) -> Result<()> {
+fn validate_client(handle: HANDLE, _policy: ClientPolicy) -> Result<()> {
     #[cfg(debug_assertions)]
-    if matches!(policy, ClientPolicy::AllowAny) {
+    if matches!(_policy, ClientPolicy::AllowAny) {
         return Ok(());
     }
 

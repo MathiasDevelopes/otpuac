@@ -12,6 +12,7 @@ const FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const LOCKOUT_DURATION: Duration = Duration::from_secs(300);
 const REDACTED_PASSWORD: &str = "<redacted>";
 
+#[cfg(debug_assertions)]
 pub(crate) fn redact_response(mut response: ProviderUnlockResponse) -> ProviderUnlockResponse {
     if let UnlockDecision::Approved { password, .. } = &mut response.decision {
         *password = REDACTED_PASSWORD.to_string();
@@ -29,6 +30,7 @@ pub(crate) struct RateLimiter {
 }
 
 impl RateLimiter {
+    #[cfg(any(debug_assertions, test))]
     pub(crate) fn new() -> Self {
         Self::with_last_accepted_step(None)
     }
@@ -111,6 +113,7 @@ impl RateLimiter {
     }
 }
 
+#[cfg(debug_assertions)]
 pub(crate) fn handle_unlock_request(
     vault_path: &Path,
     request: ProviderUnlockRequest,
