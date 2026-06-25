@@ -11,9 +11,10 @@ use windows_sys::Win32::Security::Credentials::{
     CredPackAuthenticationBufferW, CRED_PACK_PROTECTED_CREDENTIALS, CRED_PACK_WOW_BUFFER,
 };
 use windows_sys::Win32::System::Com::{CoTaskMemAlloc, CoTaskMemFree};
+use windows_sys::Win32::UI::Shell::CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION as CredentialProviderCredentialSerialization;
 
 use super::hresult::{hresult_from_last_error, hresult_from_win32};
-use super::{CredentialProviderCredentialSerialization, CLSID_OTPUAC};
+use super::ids::CLSID_OTPUAC;
 use otpuac_windows_support::wide::{secure_zero_u16, wide_null};
 
 pub(super) unsafe fn pack_credential(
