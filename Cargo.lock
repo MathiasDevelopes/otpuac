@@ -304,6 +304,7 @@ name = "otpuac-provider-rs"
 version = "1.0.1"
 dependencies = [
  "otpuac-core",
+ "otpuac-windows-support",
  "serde_json",
  "windows-sys 0.59.0",
  "zeroize",
@@ -315,6 +316,7 @@ version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",
+ "otpuac-windows-support",
  "serde",
  "serde_json",
  "tracing",
@@ -330,9 +332,20 @@ version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",
+ "otpuac-windows-support",
  "rand",
  "serde",
  "serde_json",
+ "windows-sys 0.59.0",
+ "zeroize",
+]
+
+[[package]]
+name = "otpuac-windows-support"
+version = "1.0.1"
+dependencies = [
+ "otpuac-core",
+ "serde",
  "windows-sys 0.59.0",
  "zeroize",
 ]

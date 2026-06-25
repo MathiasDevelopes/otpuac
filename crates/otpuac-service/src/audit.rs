@@ -88,9 +88,7 @@ pub(crate) fn write(kind: AuditKind, message: impl AsRef<str>) {
 #[cfg(windows)]
 fn platform_write(kind: AuditKind, message: &str) {
     use otpuac_core::paths::SERVICE_NAME;
-    use std::ffi::OsStr;
-    use std::iter::once;
-    use std::os::windows::ffi::OsStrExt;
+    use otpuac_windows_support::wide::wide_null;
     use std::ptr;
     use windows_sys::Win32::Foundation::{GetLastError, HANDLE};
     use windows_sys::Win32::System::EventLog::{
@@ -146,10 +144,6 @@ fn platform_write(kind: AuditKind, message: &str) {
             "ReportEventW failed while writing audit event: {}",
             unsafe { GetLastError() }
         );
-    }
-
-    fn wide_null(value: &str) -> Vec<u16> {
-        OsStr::new(value).encode_wide().chain(once(0)).collect()
     }
 }
 

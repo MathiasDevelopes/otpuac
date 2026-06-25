@@ -13,7 +13,7 @@ use windows_sys::Win32::System::Registry::{
 };
 
 use super::hresult::{hresult_from_last_error, hresult_from_win32};
-use super::wide::wide_null;
+use otpuac_windows_support::wide::wide_null;
 
 const PROVIDER_NAME: &str = "OTPUAC Credential Provider";
 const THREADING_MODEL_VALUE: &str = "Apartment";

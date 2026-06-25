@@ -5,6 +5,7 @@ members = [
     "crates/otpuac-provider-rs",
     "crates/otpuac-service",
     "crates/otpuac-setup",
+    "crates/otpuac-windows-support",
 ]
 resolver = "2"
 

@@ -12,11 +12,7 @@ pub fn build_unlock_request(
     request_id: impl Into<String>,
     totp_code: impl Into<String>,
 ) -> ProviderUnlockRequest {
-    ProviderUnlockRequest {
-        request_id: request_id.into(),
-        usage_scenario: OTPUAC_USAGE_SCENARIO.to_string(),
-        totp_code: totp_code.into(),
-    }
+    ProviderUnlockRequest::credential_ui(request_id, totp_code)
 }
 
 #[cfg(windows)]

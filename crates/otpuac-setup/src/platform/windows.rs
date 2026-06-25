@@ -1,8 +1,6 @@
 use otpuac_core::{paths::SERVICE_NAME, Result};
-use std::ffi::OsStr;
-use std::iter::once;
+use otpuac_windows_support::wide::{string_from_wide_ptr, wide_null, wide_null_os};
 use std::mem::{size_of, zeroed};
-use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::ptr;
@@ -595,20 +593,4 @@ fn win_error(function: &str, code: u32) -> otpuac_core::OtpuacError {
 
 fn last_error(function: &str) -> otpuac_core::OtpuacError {
     win_error(function, unsafe { GetLastError() })
-}
-
-fn wide_null(value: &str) -> Vec<u16> {
-    OsStr::new(value).encode_wide().chain(once(0)).collect()
-}
-
-fn wide_null_os(value: &OsStr) -> Vec<u16> {
-    value.encode_wide().chain(once(0)).collect()
-}
-
-unsafe fn string_from_wide_ptr(ptr: *const u16) -> String {
-    let mut len = 0;
-    while *ptr.add(len) != 0 {
-        len += 1;
-    }
-    String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len))
 }

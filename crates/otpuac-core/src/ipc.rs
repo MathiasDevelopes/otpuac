@@ -27,6 +27,16 @@ impl fmt::Debug for ProviderUnlockRequest {
     }
 }
 
+impl ProviderUnlockRequest {
+    pub fn credential_ui(request_id: impl Into<String>, totp_code: impl Into<String>) -> Self {
+        Self {
+            request_id: request_id.into(),
+            usage_scenario: CRED_UI_USAGE_SCENARIO.to_string(),
+            totp_code: totp_code.into(),
+        }
+    }
+}
+
 impl Drop for ProviderUnlockRequest {
     fn drop(&mut self) {
         self.totp_code.zeroize();
@@ -173,11 +183,7 @@ mod tests {
 
     #[test]
     fn ipc_frame_round_trips() {
-        let request = ProviderUnlockRequest {
-            request_id: "req".to_string(),
-            usage_scenario: CRED_UI_USAGE_SCENARIO.to_string(),
-            totp_code: "123456".to_string(),
-        };
+        let request = ProviderUnlockRequest::credential_ui("req", "123456");
 
         let frame = encode_frame(&request).unwrap();
         let decoded = decode_frame::<ProviderUnlockRequest>(&frame).unwrap();
@@ -189,11 +195,7 @@ mod tests {
 
     #[test]
     fn debug_output_redacts_ipc_secrets() {
-        let request = ProviderUnlockRequest {
-            request_id: "req".to_string(),
-            usage_scenario: CRED_UI_USAGE_SCENARIO.to_string(),
-            totp_code: "123456".to_string(),
-        };
+        let request = ProviderUnlockRequest::credential_ui("req", "123456");
         let response = ProviderUnlockResponse {
             request_id: "req".to_string(),
             decision: UnlockDecision::Approved {
@@ -208,5 +210,14 @@ mod tests {
         assert!(debug.contains("<redacted>"));
         assert!(!debug.contains("123456"));
         assert!(!debug.contains("correct horse battery staple"));
+    }
+
+    #[test]
+    fn credential_ui_request_uses_shared_scenario() {
+        let request = ProviderUnlockRequest::credential_ui("req", "123456");
+
+        assert_eq!(request.request_id, "req");
+        assert_eq!(request.usage_scenario, CRED_UI_USAGE_SCENARIO);
+        assert_eq!(request.totp_code, "123456");
     }
 }

@@ -2,20 +2,19 @@ mod credential_pack;
 mod hresult;
 mod ipc;
 mod registry;
-mod wide;
 
 use credential_pack::pack_credential;
 use hresult::E_NOINTERFACE;
 use ipc::request_unlock;
-use otpuac_core::UnlockDecision;
+use otpuac_core::{ManagedAccount, UnlockDecision};
+use otpuac_windows_support::wide::{
+    duplicate_wide_to_com, secure_zero_u16, wide_null, wide_ptr_to_vec, wide_vec_to_string,
+};
 use registry::{register_server, unregister_server};
 use std::ffi::c_void;
 use std::mem::{size_of, zeroed};
 use std::ptr;
 use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
-use wide::{
-    duplicate_wide_to_com, secure_zero_u16, wide_null, wide_ptr_to_vec, wide_vec_to_string,
-};
 use windows_sys::core::{GUID, HRESULT};
 use windows_sys::Win32::Foundation::{
     BOOL, CLASS_E_CLASSNOTAVAILABLE, CLASS_E_NOAGGREGATION, E_INVALIDARG, E_NOTIMPL, E_OUTOFMEMORY,
@@ -853,7 +852,7 @@ unsafe extern "system" fn credential_get_serialization(
             domain,
             mut password,
         }) => {
-            let qualified = qualified_username(&username, domain.as_deref());
+            let qualified = ManagedAccount { username, domain }.label();
             let hr = pack_credential(
                 &qualified,
                 &mut password,
@@ -1022,13 +1021,6 @@ unsafe fn set_status(credential: *mut Credential, message: &str) {
 unsafe fn clear_totp_code(credential: *mut Credential) {
     secure_zero_u16(&mut (*credential).totp_code);
     (*credential).totp_code.clear();
-}
-
-fn qualified_username(username: &str, domain: Option<&str>) -> String {
-    match domain {
-        Some(domain) if !domain.trim().is_empty() => format!("{domain}\\{username}"),
-        _ => username.to_string(),
-    }
 }
 
 fn guid_eq(a: &GUID, b: &GUID) -> bool {

@@ -13,8 +13,8 @@ use windows_sys::Win32::Security::Credentials::{
 use windows_sys::Win32::System::Com::{CoTaskMemAlloc, CoTaskMemFree};
 
 use super::hresult::{hresult_from_last_error, hresult_from_win32};
-use super::wide::{secure_zero_u16, wide_null};
 use super::{CredentialProviderCredentialSerialization, CLSID_OTPUAC};
+use otpuac_windows_support::wide::{secure_zero_u16, wide_null};
 
 pub(super) unsafe fn pack_credential(
     qualified_username: &str,

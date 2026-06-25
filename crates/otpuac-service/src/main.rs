@@ -9,9 +9,9 @@ use clap::Parser;
 use cli::{Cli, Command};
 #[cfg(debug_assertions)]
 use otpuac_core::paths::default_vault_path;
-use otpuac_core::Result;
 #[cfg(debug_assertions)]
-use otpuac_core::{ProviderUnlockRequest, CRED_UI_USAGE_SCENARIO};
+use otpuac_core::ProviderUnlockRequest;
+use otpuac_core::Result;
 use platform::run_service;
 #[cfg(debug_assertions)]
 use platform::{pipe_check, serve_foreground};
@@ -62,11 +62,7 @@ fn main() -> Result<()> {
 
 #[cfg(debug_assertions)]
 fn credential_ui_request(request_id: &str, totp_code: String) -> ProviderUnlockRequest {
-    ProviderUnlockRequest {
-        request_id: request_id.to_string(),
-        usage_scenario: CRED_UI_USAGE_SCENARIO.to_string(),
-        totp_code,
-    }
+    ProviderUnlockRequest::credential_ui(request_id, totp_code)
 }
 
 #[cfg(debug_assertions)]
