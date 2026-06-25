@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::iter::once;
 use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::ptr;
 use std::thread;
@@ -37,17 +37,23 @@ use windows_sys::Win32::System::Registry::{
 };
 use windows_sys::Win32::System::Services::{
     ChangeServiceConfig2W, CloseServiceHandle, ControlService, CreateServiceW, DeleteService,
-    OpenSCManagerW, OpenServiceW, QueryServiceStatus, StartServiceW, SC_HANDLE,
-    SC_MANAGER_ALL_ACCESS, SERVICE_ALL_ACCESS, SERVICE_AUTO_START, SERVICE_CONFIG_DESCRIPTION,
-    SERVICE_CONTROL_STOP, SERVICE_DESCRIPTIONW, SERVICE_ERROR_NORMAL, SERVICE_STATUS,
-    SERVICE_STOPPED, SERVICE_WIN32_OWN_PROCESS,
+    OpenSCManagerW, OpenServiceW, QueryServiceStatus, StartServiceW, SC_HANDLE, SC_MANAGER_CONNECT,
+    SC_MANAGER_CREATE_SERVICE, SERVICE_AUTO_START, SERVICE_CHANGE_CONFIG,
+    SERVICE_CONFIG_DESCRIPTION, SERVICE_CONTROL_STOP, SERVICE_DESCRIPTIONW, SERVICE_ERROR_NORMAL,
+    SERVICE_QUERY_STATUS, SERVICE_START, SERVICE_STATUS, SERVICE_STOP, SERVICE_STOPPED,
+    SERVICE_WIN32_OWN_PROCESS,
 };
+use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
+use zeroize::Zeroize;
 
 const SERVICE_DISPLAY_NAME: &str = "OTPUAC Service";
 const SERVICE_DESCRIPTION: &str = "OTPUAC managed-admin TOTP unlock service";
 const MANAGED_ACCOUNT_COMMENT: &str = "OTPUAC managed local administrator account";
 const SERVICE_STOP_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const SERVICE_STOP_POLL_ATTEMPTS: usize = 20;
+const STANDARD_DELETE_ACCESS: u32 = 0x0001_0000;
+const SERVICE_INSTALL_ACCESS: u32 = SERVICE_START | SERVICE_CHANGE_CONFIG;
+const SERVICE_DELETE_ACCESS: u32 = SERVICE_STOP | SERVICE_QUERY_STATUS | STANDARD_DELETE_ACCESS;
 
 struct ServiceHandle(SC_HANDLE);
 
@@ -178,7 +184,7 @@ pub(crate) fn unregister_event_log_source() -> Result<()> {
 pub(crate) fn install_or_replace_service(service_exe: &Path) -> Result<()> {
     stop_and_delete_service()?;
 
-    let manager = open_service_manager()?;
+    let manager = open_service_manager(SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE)?;
     let service_name = wide_null(SERVICE_NAME);
     let display_name = wide_null(SERVICE_DISPLAY_NAME);
     let binary_path = wide_null(&format!("\"{}\" run", service_exe.display()));
@@ -188,7 +194,7 @@ pub(crate) fn install_or_replace_service(service_exe: &Path) -> Result<()> {
             manager.0,
             service_name.as_ptr(),
             display_name.as_ptr(),
-            SERVICE_ALL_ACCESS,
+            SERVICE_INSTALL_ACCESS,
             SERVICE_WIN32_OWN_PROCESS,
             SERVICE_AUTO_START,
             SERVICE_ERROR_NORMAL,
@@ -225,9 +231,9 @@ pub(crate) fn install_or_replace_service(service_exe: &Path) -> Result<()> {
 }
 
 pub(crate) fn stop_and_delete_service() -> Result<()> {
-    let manager = open_service_manager()?;
+    let manager = open_service_manager(SC_MANAGER_CONNECT)?;
     let service_name = wide_null(SERVICE_NAME);
-    let service = unsafe { OpenServiceW(manager.0, service_name.as_ptr(), SERVICE_ALL_ACCESS) };
+    let service = unsafe { OpenServiceW(manager.0, service_name.as_ptr(), SERVICE_DELETE_ACCESS) };
     if service.is_null() {
         let err = unsafe { GetLastError() };
         if err == ERROR_SERVICE_DOES_NOT_EXIST {
@@ -287,6 +293,7 @@ fn create_local_user(username: &str, password: &str) -> Result<()> {
             &mut parm_err,
         )
     };
+    password_w.zeroize();
     if status == NERR_UserExists {
         return Err(otpuac_core::OtpuacError::InvalidVault(format!(
             "local account {username} already exists; choose a different OTPUAC managed account name"
@@ -523,8 +530,8 @@ fn sid_to_string(sid: PSID) -> Result<String> {
     Ok(unsafe { string_from_wide_ptr(sid_string) })
 }
 
-fn open_service_manager() -> Result<ServiceHandle> {
-    let manager = unsafe { OpenSCManagerW(ptr::null(), ptr::null(), SC_MANAGER_ALL_ACCESS) };
+fn open_service_manager(desired_access: u32) -> Result<ServiceHandle> {
+    let manager = unsafe { OpenSCManagerW(ptr::null(), ptr::null(), desired_access) };
     if manager.is_null() {
         return Err(last_error("OpenSCManagerW"));
     }
@@ -550,7 +557,7 @@ fn wait_for_service_stop(service: SC_HANDLE) -> Result<()> {
 }
 
 fn run_regsvr32(provider_dll: &Path, unregister: bool) -> Result<()> {
-    let mut command = Command::new("regsvr32.exe");
+    let mut command = Command::new(system32_exe("regsvr32.exe")?);
     if unregister {
         command.arg("/u");
     }
@@ -562,6 +569,24 @@ fn run_regsvr32(provider_dll: &Path, unregister: bool) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+fn system32_exe(name: &str) -> Result<PathBuf> {
+    Ok(system32_dir()?.join(name))
+}
+
+fn system32_dir() -> Result<PathBuf> {
+    let mut buf = vec![0_u16; 32768];
+    let len = unsafe { GetSystemDirectoryW(buf.as_mut_ptr(), buf.len() as u32) };
+    if len == 0 {
+        return Err(last_error("GetSystemDirectoryW"));
+    }
+    if len as usize > buf.len() {
+        return Err(win_error("GetSystemDirectoryW", ERROR_INSUFFICIENT_BUFFER));
+    }
+    Ok(PathBuf::from(String::from_utf16_lossy(
+        &buf[..len as usize],
+    )))
 }
 
 fn win_error(function: &str, code: u32) -> otpuac_core::OtpuacError {

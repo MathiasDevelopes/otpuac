@@ -274,7 +274,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "otpuac-admin"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",
@@ -284,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "otpuac-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64",
  "data-encoding",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "otpuac-provider-rs"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "otpuac-core",
  "serde_json",
@@ -311,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "otpuac-service"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "otpuac-setup"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",

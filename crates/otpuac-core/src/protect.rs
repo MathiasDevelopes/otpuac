@@ -1,4 +1,4 @@
-#[cfg(windows)]
+#[cfg(any(windows, all(not(windows), not(debug_assertions))))]
 use crate::error::OtpuacError;
 use crate::error::Result;
 
@@ -13,16 +13,21 @@ pub fn default_protector() -> DpapiProtector {
     DpapiProtector
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), debug_assertions))]
 pub fn default_protector() -> InsecureDevProtector {
     InsecureDevProtector
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(debug_assertions)))]
+pub fn default_protector() -> UnsupportedProtector {
+    UnsupportedProtector
+}
+
+#[cfg(all(not(windows), debug_assertions))]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct InsecureDevProtector;
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), debug_assertions))]
 impl SecretProtector for InsecureDevProtector {
     fn scheme(&self) -> &'static str {
         "insecure-dev-plaintext"
@@ -34,6 +39,29 @@ impl SecretProtector for InsecureDevProtector {
 
     fn unprotect(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         Ok(ciphertext.to_vec())
+    }
+}
+
+#[cfg(all(not(windows), not(debug_assertions)))]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct UnsupportedProtector;
+
+#[cfg(all(not(windows), not(debug_assertions)))]
+impl SecretProtector for UnsupportedProtector {
+    fn scheme(&self) -> &'static str {
+        "unsupported"
+    }
+
+    fn protect(&self, _plaintext: &[u8]) -> Result<Vec<u8>> {
+        Err(OtpuacError::UnsupportedPlatform(
+            "secret protection is only available in Windows release builds",
+        ))
+    }
+
+    fn unprotect(&self, _ciphertext: &[u8]) -> Result<Vec<u8>> {
+        Err(OtpuacError::UnsupportedPlatform(
+            "secret protection is only available in Windows release builds",
+        ))
     }
 }
 
@@ -109,6 +137,7 @@ fn dpapi_unprotect(ciphertext: &[u8]) -> Result<Vec<u8>> {
     use std::ptr;
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
+    use zeroize::Zeroize;
 
     let mut input = CRYPT_INTEGER_BLOB {
         cbData: ciphertext.len() as u32,
@@ -136,8 +165,9 @@ fn dpapi_unprotect(ciphertext: &[u8]) -> Result<Vec<u8>> {
     }
 
     let plaintext = unsafe {
-        let slice = std::slice::from_raw_parts(output.pbData, output.cbData as usize);
+        let slice = std::slice::from_raw_parts_mut(output.pbData, output.cbData as usize);
         let plaintext = slice.to_vec();
+        slice.zeroize();
         LocalFree(output.pbData.cast());
         plaintext
     };

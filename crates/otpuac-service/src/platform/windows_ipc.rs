@@ -32,6 +32,7 @@ use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeClientProcessId,
     PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
+use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
 use windows_sys::Win32::System::Threading::{
     CreateEventW, OpenProcess, QueryFullProcessImageNameW, WaitForSingleObject, INFINITE,
     PROCESS_QUERY_LIMITED_INFORMATION,
@@ -456,10 +457,7 @@ fn client_process_image(handle: HANDLE) -> Result<String> {
 }
 
 fn is_allowed_credential_ui_host(image: &str) -> bool {
-    let system32 = std::env::var_os("SystemRoot")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
-        .join("System32");
+    let system32 = system32_dir().unwrap_or_else(|| PathBuf::from(r"C:\Windows\System32"));
 
     ["consent.exe", "LogonUI.exe", "CredentialUIBroker.exe"]
         .iter()
@@ -467,6 +465,17 @@ fn is_allowed_credential_ui_host(image: &str) -> bool {
             normalize_windows_path(image)
                 == normalize_windows_path(&system32.join(exe).display().to_string())
         })
+}
+
+fn system32_dir() -> Option<PathBuf> {
+    let mut buf = vec![0_u16; 32768];
+    let len = unsafe { GetSystemDirectoryW(buf.as_mut_ptr(), buf.len() as u32) };
+    if len == 0 || len as usize > buf.len() {
+        return None;
+    }
+    Some(PathBuf::from(String::from_utf16_lossy(
+        &buf[..len as usize],
+    )))
 }
 
 fn state_path_for_vault(vault_path: &Path) -> PathBuf {

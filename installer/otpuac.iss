@@ -1,5 +1,5 @@
 #ifndef AppVersion
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 #endif
 
 #ifndef ArtifactsDir
@@ -41,7 +41,7 @@ Name: "{group}\Uninstall OTPUAC"; Filename: "{uninstallexe}"
 
 [Run]
 Filename: "{app}\otpuac-setup.exe"; Parameters: "install-managed --account-name ""{code:GetManagedAccountName}"" --issuer ""{code:GetIssuer}"" --install-dir ""{app}"" --program-data ""{commonappdata}\OTPUAC"" --enrollment-file ""{tmp}\otpuac-enrollment.txt"""; StatusMsg: "Creating the OTPUAC managed administrator account and installing the service..."; Flags: runhidden waituntilterminated
-Filename: "notepad.exe"; Parameters: """{tmp}\otpuac-enrollment.txt"""; StatusMsg: "Opening OTPUAC authenticator enrollment..."; Flags: waituntilterminated; Check: ShouldShowEnrollment
+Filename: "{sys}\notepad.exe"; Parameters: """{tmp}\otpuac-enrollment.txt"""; StatusMsg: "Opening OTPUAC authenticator enrollment..."; Flags: waituntilterminated; Check: ShouldShowEnrollment
 
 [UninstallRun]
 Filename: "{app}\otpuac-setup.exe"; Parameters: "uninstall --install-dir ""{app}"" --program-data ""{commonappdata}\OTPUAC"" --remove-data --remove-created-account"; Flags: runhidden waituntilterminated; RunOnceId: "OTPUACCleanup"

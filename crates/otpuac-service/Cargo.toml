@@ -1,6 +1,6 @@
 [package]
 name = "otpuac-service"
-version = "1.0.0"
+version = "1.0.1"
 edition.workspace = true
 license.workspace = true
 
@@ -23,5 +23,6 @@ windows-sys = { workspace = true, features = [
     "Win32_System_EventLog",
     "Win32_System_IO",
     "Win32_System_Pipes",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
 ] }

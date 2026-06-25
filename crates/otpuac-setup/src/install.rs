@@ -70,8 +70,8 @@ pub(crate) fn install_managed(
 pub(crate) fn verify_code(code: String, program_data: PathBuf) -> Result<()> {
     let protector = default_protector();
     let vault = VaultFile::read_from_path(vault_path(program_data))?;
-    let credential = vault.unlock(&code, now_unix(), &protector)?;
-    println!("TOTP accepted for {}", credential.account.label());
+    vault.accepted_totp_step(&code, now_unix(), &protector)?;
+    println!("TOTP accepted for {}", vault.account.label());
     Ok(())
 }
 
@@ -101,6 +101,10 @@ pub(crate) fn uninstall(
         .filter(|metadata| metadata.managed_account_created_by_otpuac)
     {
         cleanup_managed_account(metadata, remove_created_account)?;
+    }
+
+    if remove_data {
+        validate_remove_data_target(&program_data, metadata.as_ref())?;
     }
 
     if remove_data && program_data.exists() {
@@ -207,6 +211,30 @@ fn cleanup_managed_account(metadata: &SetupMetadata, remove_created_account: boo
     Ok(())
 }
 
+fn validate_remove_data_target(
+    program_data: &Path,
+    metadata: Option<&SetupMetadata>,
+) -> Result<()> {
+    let metadata = metadata.ok_or_else(|| {
+        otpuac_core::OtpuacError::InvalidVault(format!(
+            "refusing to remove {} because OTPUAC setup metadata is missing",
+            program_data.display()
+        ))
+    })?;
+
+    if metadata.version != 1
+        || metadata.install_kind != "managed-local-admin"
+        || metadata.service_name != SERVICE_NAME
+    {
+        return Err(otpuac_core::OtpuacError::InvalidVault(format!(
+            "refusing to remove {} because OTPUAC setup metadata is not valid",
+            program_data.display()
+        )));
+    }
+
+    Ok(())
+}
+
 fn rollback_new_install(account_name: Option<String>, metadata_path: &Path, vault_path: &Path) {
     if let Some(account_name) = account_name {
         let _ = platform::unhide_local_account_from_sign_in(&account_name);
@@ -228,4 +256,46 @@ struct ProvisionedInstall {
     metadata: SetupMetadata,
     vault: VaultFile,
     rollback_account_name: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remove_data_target_requires_setup_metadata() {
+        let err = validate_remove_data_target(Path::new("program-data"), None).unwrap_err();
+        assert!(err.to_string().contains("setup metadata is missing"));
+    }
+
+    #[test]
+    fn remove_data_target_rejects_unexpected_metadata() {
+        let mut metadata = valid_metadata();
+        metadata.service_name = "OtherService".to_string();
+
+        let err =
+            validate_remove_data_target(Path::new("program-data"), Some(&metadata)).unwrap_err();
+        assert!(err.to_string().contains("setup metadata is not valid"));
+    }
+
+    #[test]
+    fn remove_data_target_accepts_otpuac_metadata() {
+        let metadata = valid_metadata();
+
+        validate_remove_data_target(Path::new("program-data"), Some(&metadata)).unwrap();
+    }
+
+    fn valid_metadata() -> SetupMetadata {
+        SetupMetadata {
+            version: 1,
+            install_kind: "managed-local-admin".to_string(),
+            managed_account_username: "OTPUACAdmin".to_string(),
+            managed_account_domain: None,
+            managed_account_sid: "S-1-5-21-test".to_string(),
+            managed_account_created_by_otpuac: true,
+            install_dir: PathBuf::from(r"C:\Program Files\OTPUAC"),
+            service_name: SERVICE_NAME.to_string(),
+            created_at_unix: 1,
+        }
+    }
 }

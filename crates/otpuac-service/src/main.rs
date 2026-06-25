@@ -7,7 +7,9 @@ mod unlock;
 
 use clap::Parser;
 use cli::{Cli, Command};
-use otpuac_core::{paths::default_vault_path, Result};
+#[cfg(debug_assertions)]
+use otpuac_core::paths::default_vault_path;
+use otpuac_core::Result;
 #[cfg(debug_assertions)]
 use otpuac_core::{ProviderUnlockRequest, CRED_UI_USAGE_SCENARIO};
 use platform::run_service;
@@ -22,11 +24,11 @@ fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let vault_path = cli.vault.unwrap_or_else(default_vault_path);
 
     match cli.command {
         #[cfg(debug_assertions)]
         Command::Check { code } => {
+            let vault_path = cli.vault.unwrap_or_else(default_vault_path);
             let request = credential_ui_request("debug-check", code);
             let response = handle_unlock_request(&vault_path, request, false)?;
             print_json_pretty(&response)?;
@@ -38,17 +40,21 @@ fn main() -> Result<()> {
             print_json_pretty(&redact_response(response))?;
         }
         #[cfg(debug_assertions)]
-        Command::ServeForeground => serve_foreground(&vault_path)?,
+        Command::ServeForeground => {
+            let vault_path = cli.vault.unwrap_or_else(default_vault_path);
+            serve_foreground(&vault_path)?;
+        }
         #[cfg(debug_assertions)]
         Command::HandleJson {
             request_json,
             emit_secret,
         } => {
+            let vault_path = cli.vault.unwrap_or_else(default_vault_path);
             let request = serde_json::from_str::<ProviderUnlockRequest>(&request_json)?;
             let response = handle_unlock_request(&vault_path, request, emit_secret)?;
             println!("{}", serde_json::to_string(&response)?);
         }
-        Command::Run => run_service(&vault_path)?,
+        Command::Run => run_service()?,
     }
 
     Ok(())

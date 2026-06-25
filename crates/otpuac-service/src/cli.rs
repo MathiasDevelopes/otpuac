@@ -1,10 +1,12 @@
 use clap::{Parser, Subcommand};
+#[cfg(debug_assertions)]
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(name = "otpuac-service")]
 #[command(about = "OTPUAC Windows service host.")]
 pub(crate) struct Cli {
+    #[cfg(debug_assertions)]
     #[arg(long, global = true)]
     pub(crate) vault: Option<PathBuf>,
 

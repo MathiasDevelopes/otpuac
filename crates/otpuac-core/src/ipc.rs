@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::mem::size_of;
 use zeroize::Zeroize;
 
@@ -9,11 +10,21 @@ pub const MAX_IPC_MESSAGE_BYTES: usize = 64 * 1024;
 pub const CRED_UI_USAGE_SCENARIO: &str = "CPUS_CREDUI";
 const FRAME_LENGTH_PREFIX_BYTES: usize = size_of::<u32>();
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ProviderUnlockRequest {
     pub request_id: String,
     pub usage_scenario: String,
     pub totp_code: String,
+}
+
+impl fmt::Debug for ProviderUnlockRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProviderUnlockRequest")
+            .field("request_id", &self.request_id)
+            .field("usage_scenario", &self.usage_scenario)
+            .field("totp_code", &"<redacted>")
+            .finish()
+    }
 }
 
 impl Drop for ProviderUnlockRequest {
@@ -22,10 +33,19 @@ impl Drop for ProviderUnlockRequest {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ProviderUnlockResponse {
     pub request_id: String,
     pub decision: UnlockDecision,
+}
+
+impl fmt::Debug for ProviderUnlockResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProviderUnlockResponse")
+            .field("request_id", &self.request_id)
+            .field("decision", &self.decision)
+            .finish()
+    }
 }
 
 impl ProviderUnlockResponse {
@@ -51,7 +71,7 @@ impl Drop for ProviderUnlockResponse {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum UnlockDecision {
     Approved {
@@ -68,6 +88,27 @@ pub enum UnlockDecision {
     },
 }
 
+impl fmt::Debug for UnlockDecision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Approved {
+                username, domain, ..
+            } => f
+                .debug_struct("Approved")
+                .field("username", username)
+                .field("domain", domain)
+                .field("password", &"<redacted>")
+                .finish(),
+            Self::Denied { reason, message } => f
+                .debug_struct("Denied")
+                .field("reason", reason)
+                .field("message", message)
+                .finish(),
+            Self::Error { message } => f.debug_struct("Error").field("message", message).finish(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UnlockFailureReason {
@@ -78,17 +119,19 @@ pub enum UnlockFailureReason {
 }
 
 pub fn encode_frame<T: Serialize>(message: &T) -> Result<Vec<u8>> {
-    let payload = serde_json::to_vec(message)?;
+    let mut payload = serde_json::to_vec(message)?;
     if payload.len() > MAX_IPC_MESSAGE_BYTES {
+        let len = payload.len();
+        payload.zeroize();
         return Err(OtpuacError::InvalidIpc(format!(
-            "message is too large: {} bytes",
-            payload.len()
+            "message is too large: {len} bytes"
         )));
     }
 
     let mut frame = Vec::with_capacity(FRAME_LENGTH_PREFIX_BYTES + payload.len());
     frame.extend_from_slice(&(payload.len() as u32).to_le_bytes());
     frame.extend_from_slice(&payload);
+    payload.zeroize();
     Ok(frame)
 }
 
@@ -142,5 +185,28 @@ mod tests {
         assert_eq!(decoded.request_id, request.request_id);
         assert_eq!(decoded.usage_scenario, request.usage_scenario);
         assert_eq!(decoded.totp_code, request.totp_code);
+    }
+
+    #[test]
+    fn debug_output_redacts_ipc_secrets() {
+        let request = ProviderUnlockRequest {
+            request_id: "req".to_string(),
+            usage_scenario: CRED_UI_USAGE_SCENARIO.to_string(),
+            totp_code: "123456".to_string(),
+        };
+        let response = ProviderUnlockResponse {
+            request_id: "req".to_string(),
+            decision: UnlockDecision::Approved {
+                username: "admin".to_string(),
+                domain: None,
+                password: "correct horse battery staple".to_string(),
+            },
+        };
+
+        let debug = format!("{request:?} {response:?}");
+
+        assert!(debug.contains("<redacted>"));
+        assert!(!debug.contains("123456"));
+        assert!(!debug.contains("correct horse battery staple"));
     }
 }

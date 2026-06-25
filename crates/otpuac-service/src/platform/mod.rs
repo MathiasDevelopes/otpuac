@@ -1,6 +1,7 @@
 use otpuac_core::Result;
 #[cfg(debug_assertions)]
 use otpuac_core::{ProviderUnlockRequest, ProviderUnlockResponse};
+#[cfg(debug_assertions)]
 use std::path::Path;
 
 #[cfg(windows)]
@@ -36,12 +37,12 @@ pub(crate) fn pipe_check(_request: ProviderUnlockRequest) -> Result<ProviderUnlo
 }
 
 #[cfg(windows)]
-pub(crate) fn run_service(_vault_path: &Path) -> Result<()> {
+pub(crate) fn run_service() -> Result<()> {
     windows_service_host::run()
 }
 
 #[cfg(not(windows))]
-pub(crate) fn run_service(_vault_path: &Path) -> Result<()> {
+pub(crate) fn run_service() -> Result<()> {
     unsupported(UNSUPPORTED_SERVICE_MODE)
 }
 

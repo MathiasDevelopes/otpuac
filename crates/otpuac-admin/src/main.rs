@@ -121,8 +121,8 @@ fn verify_code(
     protector: &impl otpuac_core::SecretProtector,
 ) -> Result<()> {
     let vault = VaultFile::read_from_path(vault_path)?;
-    let credential = vault.unlock(code, now_unix(), protector)?;
-    println!("TOTP accepted for {}", credential.account.label());
+    vault.accepted_totp_step(code, now_unix(), protector)?;
+    println!("TOTP accepted for {}", vault.account.label());
     Ok(())
 }
 

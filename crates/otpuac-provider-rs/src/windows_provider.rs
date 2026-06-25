@@ -36,7 +36,7 @@ use windows_sys::Win32::UI::Shell::{
     CREDENTIAL_PROVIDER_NO_DEFAULT, CREDENTIAL_PROVIDER_STATUS_ICON,
     CREDENTIAL_PROVIDER_USAGE_SCENARIO,
 };
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 const FIELD_LABEL: u32 = 0;
 const FIELD_TITLE: u32 = 1;
@@ -180,6 +180,12 @@ struct Credential {
     cred_ui_flags: u32,
     totp_code: Vec<u16>,
     status: Vec<u16>,
+}
+
+impl Drop for Credential {
+    fn drop(&mut self) {
+        self.totp_code.zeroize();
+    }
 }
 
 #[repr(C)]
@@ -832,13 +838,16 @@ unsafe extern "system" fn credential_get_serialization(
     *status_icon = CPSI_NONE;
     *serialization = zeroed();
 
-    let code = wide_vec_to_string(&(*this).totp_code);
+    let code = Zeroizing::new(wide_vec_to_string(&(*this).totp_code));
     if code.trim().is_empty() {
         set_error_status(this, STATUS_ENTER_CODE, status_text, status_icon);
         return S_OK;
     }
 
-    match request_unlock(&code) {
+    let unlock_result = request_unlock(code.as_str());
+    clear_totp_code(this);
+
+    match unlock_result {
         Ok(UnlockDecision::Approved {
             username,
             domain,
@@ -852,7 +861,6 @@ unsafe extern "system" fn credential_get_serialization(
                 serialization,
             );
             password.zeroize();
-            clear_totp_code(this);
             if hr == S_OK {
                 *response = CPGSR_RETURN_CREDENTIAL_FINISHED;
                 set_status(this, STATUS_CODE_ACCEPTED);

@@ -97,6 +97,7 @@ unsafe fn read_frame(handle: HANDLE) -> Result<Vec<u8>, String> {
     let mut payload = vec![0_u8; len];
     read_exact(handle, &mut payload)?;
     frame.extend_from_slice(&payload);
+    payload.zeroize();
     Ok(frame)
 }
 
