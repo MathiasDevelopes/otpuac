@@ -12,21 +12,25 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::ptr;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, LocalFree, ERROR_BROKEN_PIPE, ERROR_IO_PENDING, ERROR_PIPE_BUSY,
-    ERROR_PIPE_CONNECTED, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0,
-    WAIT_TIMEOUT,
+    CloseHandle, GetLastError, LocalFree, ERROR_BROKEN_PIPE, ERROR_IO_PENDING,
+    ERROR_PIPE_CONNECTED, HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
+#[cfg(debug_assertions)]
+use windows_sys::Win32::Foundation::{ERROR_PIPE_BUSY, GENERIC_READ, GENERIC_WRITE};
 use windows_sys::Win32::Security::Authorization::{
     ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
 use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+#[cfg(debug_assertions)]
+use windows_sys::Win32::Storage::FileSystem::{CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING};
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FlushFileBuffers, ReadFile, WriteFile, FILE_ATTRIBUTE_NORMAL,
-    FILE_FLAG_OVERLAPPED, OPEN_EXISTING, PIPE_ACCESS_DUPLEX,
+    FlushFileBuffers, ReadFile, WriteFile, FILE_FLAG_OVERLAPPED, PIPE_ACCESS_DUPLEX,
 };
+#[cfg(debug_assertions)]
+use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeClientProcessId,
-    WaitNamedPipeW, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
 use windows_sys::Win32::System::Threading::{
     CreateEventW, OpenProcess, QueryFullProcessImageNameW, WaitForSingleObject, INFINITE,
@@ -36,11 +40,13 @@ use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED
 use zeroize::Zeroize;
 
 const PIPE_CONNECT_TIMEOUT_MS: u32 = 1_000;
+#[cfg(debug_assertions)]
 const PIPE_CONNECT_ATTEMPTS: u32 = 5;
 const PIPE_IO_TIMEOUT_MS: u32 = 5_000;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ClientPolicy {
+    #[cfg(debug_assertions)]
     AllowAny,
     CredentialUiHostsOnly,
 }
@@ -199,6 +205,7 @@ fn handle_client(
     Ok(())
 }
 
+#[cfg(debug_assertions)]
 pub(crate) fn pipe_round_trip(request: ProviderUnlockRequest) -> Result<ProviderUnlockResponse> {
     let pipe = connect_client_pipe()?;
 
@@ -209,6 +216,7 @@ pub(crate) fn pipe_round_trip(request: ProviderUnlockRequest) -> Result<Provider
     result
 }
 
+#[cfg(debug_assertions)]
 fn connect_client_pipe() -> Result<PipeHandle> {
     let pipe_name = wide_null(PIPE_NAME);
     let mut attempts = 0;
@@ -401,6 +409,7 @@ fn get_overlapped_result(
 }
 
 fn validate_client(handle: HANDLE, policy: ClientPolicy) -> Result<()> {
+    #[cfg(debug_assertions)]
     if matches!(policy, ClientPolicy::AllowAny) {
         return Ok(());
     }

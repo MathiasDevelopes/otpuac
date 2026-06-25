@@ -1,10 +1,12 @@
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(any(windows, debug_assertions)), allow(dead_code))]
 pub(crate) enum AuditKind {
     Information,
     Warning,
     Error,
 }
 
+#[cfg(any(windows, debug_assertions))]
 const MAX_AUDIT_FIELD_CHARS: usize = 160;
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -25,6 +27,7 @@ pub(crate) fn service_failed(message: impl AsRef<str>) {
     );
 }
 
+#[cfg(any(windows, debug_assertions))]
 pub(crate) fn unlock_accepted(request_id: &str, account_label: &str) {
     let request_id = audit_field(request_id);
     let account_label = audit_field(account_label);
@@ -34,6 +37,7 @@ pub(crate) fn unlock_accepted(request_id: &str, account_label: &str) {
     );
 }
 
+#[cfg(any(windows, debug_assertions))]
 pub(crate) fn unlock_rejected(request_id: &str, reason: &str) {
     let request_id = audit_field(request_id);
     let reason = audit_field(reason);
@@ -43,6 +47,7 @@ pub(crate) fn unlock_rejected(request_id: &str, reason: &str) {
     );
 }
 
+#[cfg(any(windows, debug_assertions))]
 pub(crate) fn unlock_rate_limited(request_id: &str) {
     let request_id = audit_field(request_id);
     write(
@@ -51,6 +56,7 @@ pub(crate) fn unlock_rate_limited(request_id: &str) {
     );
 }
 
+#[cfg(any(windows, debug_assertions))]
 pub(crate) fn vault_error(request_id: &str, message: impl AsRef<str>) {
     let request_id = audit_field(request_id);
     let message = audit_field(message.as_ref());
@@ -60,7 +66,7 @@ pub(crate) fn vault_error(request_id: &str, message: impl AsRef<str>) {
     );
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg(windows)]
 pub(crate) fn ipc_error(message: impl AsRef<str>) {
     let message = audit_field(message.as_ref());
     write(
@@ -150,6 +156,7 @@ fn platform_write(kind: AuditKind, message: &str) {
 #[cfg(not(windows))]
 fn platform_write(_kind: AuditKind, _message: &str) {}
 
+#[cfg(any(windows, debug_assertions))]
 fn audit_field(value: &str) -> String {
     let mut out = String::with_capacity(value.len().min(MAX_AUDIT_FIELD_CHARS));
     let mut truncated = false;
@@ -166,6 +173,7 @@ fn audit_field(value: &str) -> String {
     out
 }
 
+#[cfg(any(windows, debug_assertions))]
 fn audit_char(ch: char) -> char {
     if ch.is_control() {
         ' '
