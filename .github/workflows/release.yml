@@ -63,10 +63,6 @@ jobs:
         shell: pwsh
         run: cargo test --locked --workspace --target $env:TARGET --verbose
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --yes --no-progress
-
       - name: Build installer
         shell: pwsh
         run: .\scripts\build-installer.ps1 -Target $env:TARGET -AppVersion "${{ steps.version.outputs.version }}" -Locked
