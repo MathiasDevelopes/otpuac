@@ -3,16 +3,15 @@ use crate::state::RuntimeState;
 use crate::unlock::{handle_unlock_request_with_limiter, RateLimiter};
 #[cfg(debug_assertions)]
 use otpuac_core::ProviderUnlockResponse;
-use otpuac_core::{
-    paths::service_state_path, ProviderUnlockRequest, Result, MAX_IPC_MESSAGE_BYTES, PIPE_NAME,
-};
+use otpuac_core::{ProviderUnlockRequest, Result, MAX_IPC_MESSAGE_BYTES, PIPE_NAME};
+use otpuac_runtime::paths::{service_state_path, SERVICE_STATE_FILE};
 #[cfg(debug_assertions)]
-use otpuac_windows_support::pipe::{connect_client_pipe, DEFAULT_PIPE_CONNECT_ATTEMPTS};
-use otpuac_windows_support::pipe::{
+use otpuac_windows::pipe::{connect_client_pipe, DEFAULT_PIPE_CONNECT_ATTEMPTS};
+use otpuac_windows::pipe::{
     read_framed_message, wait_for_overlapped, write_framed_message, OverlappedOperation,
     OwnedHandle, DEFAULT_PIPE_CONNECT_TIMEOUT_MS,
 };
-use otpuac_windows_support::wide::wide_null;
+use otpuac_windows::wide::wide_null;
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
 use std::ptr;
@@ -281,7 +280,7 @@ fn state_path_for_vault(vault_path: &Path) -> PathBuf {
     vault_path
         .parent()
         .map(service_state_path)
-        .unwrap_or_else(|| PathBuf::from(otpuac_core::paths::SERVICE_STATE_FILE))
+        .unwrap_or_else(|| PathBuf::from(SERVICE_STATE_FILE))
 }
 
 fn normalize_windows_path(path: &str) -> String {

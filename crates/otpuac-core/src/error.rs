@@ -22,8 +22,17 @@ pub enum OtpuacError {
     #[error("invalid vault: {0}")]
     InvalidVault(String),
 
+    #[error("invalid configuration: {0}")]
+    InvalidConfig(String),
+
+    #[error("invalid runtime state: {0}")]
+    InvalidState(String),
+
     #[error("invalid IPC message: {0}")]
     InvalidIpc(String),
+
+    #[error("platform operation failed: {0}")]
+    Platform(String),
 
     #[error("base64 error: {0}")]
     Base64(#[from] base64::DecodeError),

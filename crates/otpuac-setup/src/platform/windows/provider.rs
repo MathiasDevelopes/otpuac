@@ -20,7 +20,7 @@ fn run_regsvr32(provider_dll: &Path, unregister: bool) -> Result<()> {
     }
     let status = command.arg("/s").arg(provider_dll).status()?;
     if !status.success() {
-        return Err(otpuac_core::OtpuacError::InvalidVault(format!(
+        return Err(otpuac_core::OtpuacError::Platform(format!(
             "regsvr32 failed for {} with {status}",
             provider_dll.display()
         )));

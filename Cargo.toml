@@ -2,10 +2,11 @@
 members = [
     "crates/otpuac-admin",
     "crates/otpuac-core",
-    "crates/otpuac-provider-rs",
+    "crates/otpuac-provider",
+    "crates/otpuac-runtime",
     "crates/otpuac-service",
     "crates/otpuac-setup",
-    "crates/otpuac-windows-support",
+    "crates/otpuac-windows",
 ]
 resolver = "2"
 

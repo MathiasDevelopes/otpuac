@@ -1,5 +1,6 @@
 use crate::metadata::SetupMetadata;
-use otpuac_core::{otpauth_uri, paths::ADMIN_EXE, Result, VaultFile};
+use otpuac_core::{otpauth_uri, Result, VaultFile};
+use otpuac_runtime::paths::ADMIN_EXE;
 use std::fs;
 use std::path::Path;
 

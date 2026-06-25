@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`otpuac-provider-rs` is the native Rust COM Credential Provider DLL used by the
-Windows UAC Credential UI path.
+`otpuac-provider` is the native Rust COM Credential Provider DLL used by the
+Windows UAC Credential UI path. Its release DLL is `otpuac_provider.dll`.
 
 It registers a stable CLSID, exposes the required COM entry points, displays a
 single OTPUAC tile, sends TOTP unlock requests to the OTPUAC service, and packs
@@ -41,5 +41,5 @@ retain a recovery path.
 - `windows_provider/ipc.rs`: named-pipe client with bounded waits.
 - `windows_provider/credential_pack.rs`: Windows credential serialization.
 - `windows_provider/registry.rs`: COM and Credential Provider registration.
-- `windows_provider/wide.rs`: UTF-16 allocation and clearing helpers.
 - `windows_provider/hresult.rs`: Win32-to-HRESULT conversion.
+- `otpuac-windows/src/wide.rs`: shared UTF-16 allocation and clearing helpers.

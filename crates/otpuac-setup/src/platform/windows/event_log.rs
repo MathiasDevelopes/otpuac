@@ -1,7 +1,8 @@
 use super::registry::{
     create_registry_key, delete_registry_tree, set_registry_dword, set_registry_string,
 };
-use otpuac_core::{paths::SERVICE_NAME, Result};
+use otpuac_core::Result;
+use otpuac_runtime::paths::SERVICE_NAME;
 use std::path::Path;
 use windows_sys::Win32::System::EventLog::{
     EVENTLOG_ERROR_TYPE, EVENTLOG_INFORMATION_TYPE, EVENTLOG_WARNING_TYPE,

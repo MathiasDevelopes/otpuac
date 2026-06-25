@@ -8,7 +8,7 @@ use super::ids::{
 use super::ipc::request_unlock;
 use super::{dll_add_ref, dll_release};
 use otpuac_core::{ManagedAccount, UnlockDecision};
-use otpuac_windows_support::wide::{
+use otpuac_windows::wide::{
     duplicate_wide_to_com, secure_zero_u16, wide_null, wide_ptr_to_vec, wide_vec_to_string,
 };
 use std::ffi::c_void;

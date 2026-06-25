@@ -1,9 +1,7 @@
 use clap::{Parser, Subcommand};
 use otpuac_core::totp::{encode_totp_secret, otpauth_uri};
-use otpuac_core::{
-    default_protector, generate_totp_secret, now_unix, ManagedAccount, Result, TotpPolicy,
-    VaultFile,
-};
+use otpuac_core::{generate_totp_secret, now_unix, ManagedAccount, Result, TotpPolicy, VaultFile};
+use otpuac_runtime::{default_protector, paths::default_vault_path};
 use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
@@ -45,9 +43,7 @@ enum Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let vault_path = cli
-        .vault
-        .unwrap_or_else(otpuac_core::paths::default_vault_path);
+    let vault_path = cli.vault.unwrap_or_else(default_vault_path);
     let protector = default_protector();
 
     match cli.command {
@@ -83,7 +79,7 @@ fn provision_vault(
     protector: &impl otpuac_core::SecretProtector,
 ) -> Result<()> {
     if vault_path.exists() && !force {
-        return Err(otpuac_core::OtpuacError::InvalidVault(format!(
+        return Err(otpuac_core::OtpuacError::InvalidConfig(format!(
             "{} already exists; pass --force to overwrite it",
             vault_path.display()
         )));

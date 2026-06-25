@@ -15,7 +15,7 @@ use windows_sys::Win32::UI::Shell::CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION 
 
 use super::hresult::{hresult_from_last_error, hresult_from_win32};
 use super::ids::CLSID_OTPUAC;
-use otpuac_windows_support::wide::{secure_zero_u16, wide_null};
+use otpuac_windows::wide::{secure_zero_u16, wide_null};
 
 pub(super) unsafe fn pack_credential(
     qualified_username: &str,

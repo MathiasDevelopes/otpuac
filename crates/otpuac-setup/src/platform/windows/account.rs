@@ -2,7 +2,7 @@ use super::error::{last_error, win_error};
 use super::local_alloc::LocalAllocPtr;
 use super::registry::{create_registry_key, set_registry_dword};
 use otpuac_core::Result;
-use otpuac_windows_support::wide::{string_from_wide_ptr, wide_null};
+use otpuac_windows::wide::{string_from_wide_ptr, wide_null};
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     GetLastError, ERROR_FILE_NOT_FOUND, ERROR_INSUFFICIENT_BUFFER, ERROR_MEMBER_IN_ALIAS,
@@ -73,7 +73,7 @@ fn create_local_user(username: &str, password: &str) -> Result<()> {
     };
     password_w.zeroize();
     if status == NERR_UserExists {
-        return Err(otpuac_core::OtpuacError::InvalidVault(format!(
+        return Err(otpuac_core::OtpuacError::InvalidConfig(format!(
             "local account {username} already exists; choose a different OTPUAC managed account name"
         )));
     }

@@ -87,8 +87,8 @@ pub(crate) fn write(kind: AuditKind, message: impl AsRef<str>) {
 
 #[cfg(windows)]
 fn platform_write(kind: AuditKind, message: &str) {
-    use otpuac_core::paths::SERVICE_NAME;
-    use otpuac_windows_support::wide::wide_null;
+    use otpuac_runtime::paths::SERVICE_NAME;
+    use otpuac_windows::wide::wide_null;
     use std::ptr;
     use windows_sys::Win32::Foundation::{GetLastError, HANDLE};
     use windows_sys::Win32::System::EventLog::{

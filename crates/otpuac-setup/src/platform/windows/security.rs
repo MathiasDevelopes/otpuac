@@ -1,7 +1,7 @@
 use super::error::{last_error, win_error};
 use super::local_alloc::LocalAllocPtr;
 use otpuac_core::Result;
-use otpuac_windows_support::wide::{wide_null, wide_null_os};
+use otpuac_windows::wide::{wide_null, wide_null_os};
 use std::path::Path;
 use std::ptr;
 use windows_sys::Win32::Security::Authorization::{

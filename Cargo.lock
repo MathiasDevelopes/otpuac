@@ -278,6 +278,7 @@ version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",
+ "otpuac-runtime",
  "rpassword",
  "zeroize",
 ]
@@ -295,19 +296,26 @@ dependencies = [
  "sha1",
  "subtle",
  "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "otpuac-provider"
+version = "1.0.1"
+dependencies = [
+ "otpuac-core",
+ "otpuac-windows",
+ "serde_json",
  "windows-sys 0.59.0",
  "zeroize",
 ]
 
 [[package]]
-name = "otpuac-provider-rs"
+name = "otpuac-runtime"
 version = "1.0.1"
 dependencies = [
  "otpuac-core",
- "otpuac-windows-support",
- "serde_json",
- "windows-sys 0.59.0",
- "zeroize",
+ "otpuac-windows",
 ]
 
 [[package]]
@@ -316,7 +324,8 @@ version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",
- "otpuac-windows-support",
+ "otpuac-runtime",
+ "otpuac-windows",
  "serde",
  "serde_json",
  "tracing",
@@ -332,7 +341,8 @@ version = "1.0.1"
 dependencies = [
  "clap",
  "otpuac-core",
- "otpuac-windows-support",
+ "otpuac-runtime",
+ "otpuac-windows",
  "rand",
  "serde",
  "serde_json",
@@ -341,7 +351,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "otpuac-windows-support"
+name = "otpuac-windows"
 version = "1.0.1"
 dependencies = [
  "otpuac-core",

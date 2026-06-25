@@ -10,10 +10,8 @@ mod validation;
 use clap::Parser;
 use cli::{Cli, Command};
 use install::{install_managed, uninstall, verify_code};
-use otpuac_core::{
-    paths::{default_install_dir, default_program_data_dir},
-    Result,
-};
+use otpuac_core::Result;
+use otpuac_runtime::paths::{default_install_dir, default_program_data_dir};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

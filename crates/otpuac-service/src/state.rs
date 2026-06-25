@@ -49,7 +49,7 @@ impl RuntimeState {
 
     fn validate(&self) -> Result<()> {
         if self.version != STATE_VERSION {
-            return Err(OtpuacError::InvalidVault(format!(
+            return Err(OtpuacError::InvalidState(format!(
                 "unsupported service state version {}",
                 self.version
             )));

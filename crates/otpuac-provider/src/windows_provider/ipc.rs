@@ -1,6 +1,6 @@
 use crate::build_unlock_request;
 use otpuac_core::{ProviderUnlockResponse, UnlockDecision};
-use otpuac_windows_support::pipe::{
+use otpuac_windows::pipe::{
     connect_default_client_pipe, read_framed_message, write_framed_message,
 };
 

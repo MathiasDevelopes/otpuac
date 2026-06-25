@@ -1,6 +1,7 @@
 use crate::audit;
 use crate::platform::windows_ipc;
-use otpuac_core::{paths::default_vault_path, paths::SERVICE_NAME, Result};
+use otpuac_core::Result;
+use otpuac_runtime::paths::{default_vault_path, SERVICE_NAME};
 use std::ffi::OsString;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -18,7 +19,7 @@ define_windows_service!(ffi_service_main, service_main);
 
 pub(crate) fn run() -> Result<()> {
     service_dispatcher::start(SERVICE_NAME, ffi_service_main)
-        .map_err(|err| otpuac_core::OtpuacError::InvalidIpc(err.to_string()))
+        .map_err(|err| otpuac_core::OtpuacError::Platform(err.to_string()))
 }
 
 fn service_main(_arguments: Vec<OsString>) {
@@ -42,7 +43,7 @@ fn run_inner() -> Result<()> {
             }
             _ => ServiceControlHandlerResult::NotImplemented,
         })
-        .map_err(|err| otpuac_core::OtpuacError::InvalidIpc(err.to_string()))?;
+        .map_err(|err| otpuac_core::OtpuacError::Platform(err.to_string()))?;
 
     set_status(&status_handle, ServiceState::Running)?;
     audit::service_started();
@@ -75,5 +76,5 @@ fn set_status(handle: &ServiceStatusHandle, state: ServiceState) -> Result<()> {
             wait_hint: Duration::from_secs(10),
             process_id: None,
         })
-        .map_err(|err| otpuac_core::OtpuacError::InvalidIpc(err.to_string()))
+        .map_err(|err| otpuac_core::OtpuacError::Platform(err.to_string()))
 }

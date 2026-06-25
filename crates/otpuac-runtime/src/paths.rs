@@ -5,7 +5,7 @@ pub const SERVICE_NAME: &str = "OTPUAC";
 pub const SETUP_METADATA_FILE: &str = "setup.json";
 pub const SERVICE_STATE_FILE: &str = "service-state.json";
 pub const VAULT_FILE: &str = "vault.json";
-pub const PROVIDER_DLL: &str = "otpuac_provider_rs.dll";
+pub const PROVIDER_DLL: &str = "otpuac_provider.dll";
 pub const SERVICE_EXE: &str = "otpuac-service.exe";
 pub const ADMIN_EXE: &str = "otpuac-admin.exe";
 

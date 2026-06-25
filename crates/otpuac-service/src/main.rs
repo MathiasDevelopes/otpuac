@@ -8,10 +8,10 @@ mod unlock;
 use clap::Parser;
 use cli::{Cli, Command};
 #[cfg(debug_assertions)]
-use otpuac_core::paths::default_vault_path;
-#[cfg(debug_assertions)]
 use otpuac_core::ProviderUnlockRequest;
 use otpuac_core::Result;
+#[cfg(debug_assertions)]
+use otpuac_runtime::paths::default_vault_path;
 use platform::run_service;
 #[cfg(debug_assertions)]
 use platform::{pipe_check, serve_foreground};

@@ -1,8 +1,9 @@
 use crate::audit;
 use otpuac_core::{
-    default_protector, now_unix, ProviderUnlockRequest, ProviderUnlockResponse, Result,
-    UnlockDecision, UnlockFailureReason, VaultFile, CRED_UI_USAGE_SCENARIO,
+    now_unix, ProviderUnlockRequest, ProviderUnlockResponse, Result, UnlockDecision,
+    UnlockFailureReason, VaultFile, CRED_UI_USAGE_SCENARIO,
 };
+use otpuac_runtime::default_protector;
 use std::collections::VecDeque;
 use std::path::Path;
 use std::time::{Duration, SystemTime};

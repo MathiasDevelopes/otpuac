@@ -7,13 +7,14 @@ license.workspace = true
 [dependencies]
 clap.workspace = true
 otpuac-core = { path = "../otpuac-core" }
+otpuac-runtime = { path = "../otpuac-runtime" }
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-otpuac-windows-support = { path = "../otpuac-windows-support" }
+otpuac-windows = { path = "../otpuac-windows" }
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_NetworkManagement_NetManagement",

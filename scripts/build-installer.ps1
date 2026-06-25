@@ -53,7 +53,7 @@ $requiredArtifacts = @(
     "otpuac-admin.exe",
     "otpuac-service.exe",
     "otpuac-setup.exe",
-    "otpuac_provider_rs.dll"
+    "otpuac_provider.dll"
 )
 
 foreach ($artifact in $requiredArtifacts) {

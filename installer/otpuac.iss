@@ -33,7 +33,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "{#ArtifactsDir}\otpuac-admin.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ArtifactsDir}\otpuac-service.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ArtifactsDir}\otpuac-setup.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#ArtifactsDir}\otpuac_provider_rs.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ArtifactsDir}\otpuac_provider.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\OTPUAC Enrollment"; Filename: "{app}\otpuac-admin.exe"; Parameters: "show-enrollment"

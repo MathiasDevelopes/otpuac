@@ -5,11 +5,13 @@
 This is a Rust workspace for OTPUAC, a Windows UAC credential-provider system.
 Workspace crates live under `crates/`:
 
-- `otpuac-core`: shared TOTP, vault, IPC contracts, path helpers, and protection abstractions.
+- `otpuac-core`: shared TOTP, vault, IPC contracts, and protection abstractions.
 - `otpuac-admin`: CLI for provisioning, enrollment, and TOTP verification.
 - `otpuac-service`: Windows service, named-pipe unlock handler, and audit logging.
 - `otpuac-setup`: installer helper for account, vault, service, provider, and uninstall work.
-- `otpuac-provider-rs`: Rust Credential Provider COM DLL.
+- `otpuac-provider`: Rust Credential Provider COM DLL.
+- `otpuac-runtime`: OTPUAC runtime paths and default platform selections.
+- `otpuac-windows`: shared OTPUAC Windows helpers for pipes, DPAPI, COM, and UTF-16.
 
 Production-facing documentation is in `docs/`, installer packaging is in
 `installer/`, and helper scripts are in `scripts/`.

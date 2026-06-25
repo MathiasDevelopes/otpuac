@@ -1,6 +1,6 @@
 use super::error::win_error;
 use otpuac_core::Result;
-use otpuac_windows_support::wide::wide_null;
+use otpuac_windows::wide::wide_null;
 use std::mem::size_of;
 use std::ptr;
 use windows_sys::Win32::Foundation::ERROR_FILE_NOT_FOUND;

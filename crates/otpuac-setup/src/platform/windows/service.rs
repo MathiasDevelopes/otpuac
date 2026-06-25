@@ -1,6 +1,7 @@
 use super::error::{last_error, win_error};
-use otpuac_core::{paths::SERVICE_NAME, Result};
-use otpuac_windows_support::wide::wide_null;
+use otpuac_core::Result;
+use otpuac_runtime::paths::SERVICE_NAME;
+use otpuac_windows::wide::wide_null;
 use std::mem::zeroed;
 use std::path::Path;
 use std::ptr;

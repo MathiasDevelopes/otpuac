@@ -5,9 +5,11 @@ use crate::password::generate_windows_password;
 use crate::platform;
 use crate::validation::{validate_installed_files, validate_local_account_name};
 use otpuac_core::{
-    default_protector, generate_totp_secret, now_unix,
+    generate_totp_secret, now_unix, ManagedAccount, Result, SecretProtector, TotpPolicy, VaultFile,
+};
+use otpuac_runtime::{
+    default_protector,
     paths::{setup_metadata_path, vault_path, PROVIDER_DLL, SERVICE_EXE, SERVICE_NAME},
-    ManagedAccount, Result, SecretProtector, TotpPolicy, VaultFile,
 };
 use serde::Serialize;
 use std::fs;
@@ -124,7 +126,7 @@ fn read_existing_install(
             read_metadata(metadata_path)?,
             VaultFile::read_from_path(vault_path)?,
         ))),
-        (false, true) => Err(otpuac_core::OtpuacError::InvalidVault(format!(
+        (false, true) => Err(otpuac_core::OtpuacError::InvalidConfig(format!(
             "{} already exists but {} is missing; uninstall or recover manually before reinstalling",
             vault_path.display(),
             metadata_path.display()
@@ -216,7 +218,7 @@ fn validate_remove_data_target(
     metadata: Option<&SetupMetadata>,
 ) -> Result<()> {
     let metadata = metadata.ok_or_else(|| {
-        otpuac_core::OtpuacError::InvalidVault(format!(
+        otpuac_core::OtpuacError::InvalidConfig(format!(
             "refusing to remove {} because OTPUAC setup metadata is missing",
             program_data.display()
         ))
@@ -226,7 +228,7 @@ fn validate_remove_data_target(
         || metadata.install_kind != "managed-local-admin"
         || metadata.service_name != SERVICE_NAME
     {
-        return Err(otpuac_core::OtpuacError::InvalidVault(format!(
+        return Err(otpuac_core::OtpuacError::InvalidConfig(format!(
             "refusing to remove {} because OTPUAC setup metadata is not valid",
             program_data.display()
         )));

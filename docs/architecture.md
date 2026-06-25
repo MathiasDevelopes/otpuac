@@ -8,16 +8,20 @@ responsibility.
 
 ## Components
 
-- `otpuac-core`: TOTP verification, vault format, secret protection, path
-  helpers, and provider/service IPC contracts.
+- `otpuac-core`: TOTP verification, vault format, secret protection
+  abstraction, and provider/service IPC contracts.
+- `otpuac-runtime`: OTPUAC product paths, installed artifact names, and default
+  runtime selections such as the platform secret protector.
 - `otpuac-admin`: administrator CLI for provisioning, enrollment display, and
   TOTP verification.
 - `otpuac-service`: Windows service that validates unlock requests and releases
   the managed credential after TOTP succeeds.
 - `otpuac-setup`: installer helper for account creation, vault provisioning,
   service registration, Credential Provider registration, and uninstall cleanup.
-- `otpuac-provider-rs`: native Rust Windows Credential Provider DLL for the UAC
+- `otpuac-provider`: native Rust Windows Credential Provider DLL for the UAC
   prompt.
+- `otpuac-windows`: OTPUAC Windows helper crate for DPAPI, named pipes, COM
+  allocations, handles, and UTF-16 conversion.
 
 ## UAC Flow
 

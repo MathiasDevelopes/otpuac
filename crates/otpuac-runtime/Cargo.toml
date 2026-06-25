@@ -1,0 +1,11 @@
+[package]
+name = "otpuac-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+otpuac-core = { path = "../otpuac-core" }
+
+[target.'cfg(windows)'.dependencies]
+otpuac-windows = { path = "../otpuac-windows" }
