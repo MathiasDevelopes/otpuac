@@ -1,5 +1,6 @@
 #[cfg(all(not(windows), not(debug_assertions)))]
 use otpuac_core::OtpuacError;
+#[cfg(not(windows))]
 use otpuac_core::{Result, SecretProtector};
 
 #[cfg(windows)]
