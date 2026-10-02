@@ -1,11 +1,7 @@
 use windows_sys::core::GUID;
 
-pub(super) const CLSID_OTPUAC: GUID = GUID {
-    data1: 0xB6B6F0C2,
-    data2: 0x4CCB,
-    data3: 0x487E,
-    data4: [0x9B, 0x58, 0x68, 0x10, 0x99, 0x86, 0x5B, 0x10],
-};
+pub(super) const CLSID_OTPUAC: GUID =
+    GUID::from_u128(crate::parse_guid_u128(crate::OTPUAC_PROVIDER_CLSID));
 
 pub(super) const IID_IUNKNOWN: GUID = GUID {
     data1: 0x00000000,
