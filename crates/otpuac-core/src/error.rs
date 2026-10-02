@@ -37,9 +37,6 @@ pub enum OtpuacError {
     #[error("base64 error: {0}")]
     Base64(#[from] base64::DecodeError),
 
-    #[error("base32 error")]
-    Base32,
-
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
