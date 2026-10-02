@@ -1,7 +1,7 @@
 use crate::error::{OtpuacError, Result};
 use data_encoding::BASE32_NOPAD;
-use hmac::{Hmac, Mac};
-use rand::{rngs::OsRng, RngCore};
+use hmac::{Hmac, KeyInit, Mac};
+use rand::{rngs::SysRng, TryRng};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use subtle::ConstantTimeEq;
@@ -65,7 +65,9 @@ impl TotpPolicy {
 
 pub fn generate_totp_secret() -> Zeroizing<Vec<u8>> {
     let mut secret = Zeroizing::new(vec![0_u8; TOTP_SECRET_BYTES]);
-    OsRng.fill_bytes(&mut secret);
+    SysRng
+        .try_fill_bytes(&mut secret)
+        .expect("OS random source is available");
     secret
 }
 

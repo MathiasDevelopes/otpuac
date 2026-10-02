@@ -8,8 +8,8 @@ use super::{dll_add_ref, dll_release};
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicU32, Ordering};
-use windows_sys::core::{GUID, HRESULT};
-use windows_sys::Win32::Foundation::{BOOL, E_INVALIDARG, E_NOTIMPL, S_OK};
+use windows_sys::core::{BOOL, GUID, HRESULT};
+use windows_sys::Win32::Foundation::{E_INVALIDARG, E_NOTIMPL, S_OK};
 use windows_sys::Win32::UI::Shell::{
     CPUS_CREDUI,
     CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION as CredentialProviderCredentialSerialization,

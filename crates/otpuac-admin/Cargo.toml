@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 clap.workspace = true
-otpuac-core = { path = "../otpuac-core" }
-otpuac-runtime = { path = "../otpuac-runtime" }
+otpuac-core.workspace = true
+otpuac-runtime.workspace = true
 rpassword.workspace = true
 zeroize.workspace = true

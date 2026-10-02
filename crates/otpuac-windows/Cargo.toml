@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-otpuac-core = { path = "../otpuac-core" }
+otpuac-core.workspace = true
 serde.workspace = true
 zeroize.workspace = true
 

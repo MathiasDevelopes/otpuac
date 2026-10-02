@@ -2,7 +2,7 @@ use crate::error::{OtpuacError, Result};
 use crate::protect::SecretProtector;
 use crate::time::now_unix;
 use crate::totp::{accepted_step_at, encode_totp_secret, TotpPolicy};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -160,7 +160,7 @@ fn protect_blob(protector: &impl SecretProtector, plaintext: &[u8]) -> Result<Pr
     let protected = protector.protect(plaintext)?;
     Ok(ProtectedBlob {
         scheme: protector.scheme().to_string(),
-        data_base64: BASE64.encode(protected),
+        data_base64: BASE64.encode(&protected),
     })
 }
 
@@ -174,7 +174,7 @@ fn unprotect_blob(
             actual: protected_blob.scheme.clone(),
         });
     }
-    let ciphertext = BASE64.decode(&protected_blob.data_base64)?;
+    let ciphertext = BASE64.decode(protected_blob.data_base64.as_bytes())?;
     protector.unprotect(&ciphertext).map(Zeroizing::new)
 }
 
