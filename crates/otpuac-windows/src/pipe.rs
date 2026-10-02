@@ -1,8 +1,9 @@
 use crate::wide::wide_null;
+use otpuac_core::ipc::FRAME_LENGTH_PREFIX_BYTES;
 use otpuac_core::{
     decode_frame, encode_frame, OtpuacError, Result, MAX_IPC_MESSAGE_BYTES, PIPE_NAME,
 };
-use std::mem::{size_of, zeroed};
+use std::mem::zeroed;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     CloseHandle, GetLastError, ERROR_IO_PENDING, ERROR_PIPE_BUSY, GENERIC_READ, GENERIC_WRITE,
@@ -19,8 +20,6 @@ use zeroize::Zeroize;
 pub const DEFAULT_PIPE_CONNECT_ATTEMPTS: u32 = 5;
 pub const DEFAULT_PIPE_CONNECT_TIMEOUT_MS: u32 = 1_000;
 pub const DEFAULT_PIPE_IO_TIMEOUT_MS: u32 = 5_000;
-
-const IPC_FRAME_LENGTH_BYTES: usize = size_of::<u32>();
 
 pub struct OwnedHandle(HANDLE);
 
@@ -131,9 +130,9 @@ pub fn connect_client_pipe(
 }
 
 pub fn read_framed_message<T: for<'de> serde::Deserialize<'de>>(handle: HANDLE) -> Result<T> {
-    let mut frame = read_frame(handle)?;
-    let decoded = decode_frame(&frame);
-    frame.zeroize();
+    let mut payload = read_frame_payload(handle)?;
+    let decoded = decode_frame(&payload);
+    payload.zeroize();
     decoded
 }
 
@@ -144,8 +143,8 @@ pub fn write_framed_message<T: serde::Serialize>(handle: HANDLE, message: &T) ->
     result
 }
 
-pub fn read_frame(handle: HANDLE) -> Result<Vec<u8>> {
-    let mut len_buf = [0_u8; IPC_FRAME_LENGTH_BYTES];
+fn read_frame_payload(handle: HANDLE) -> Result<Vec<u8>> {
+    let mut len_buf = [0_u8; FRAME_LENGTH_PREFIX_BYTES];
     read_exact(handle, &mut len_buf)?;
     let len = u32::from_le_bytes(len_buf) as usize;
     if len > MAX_IPC_MESSAGE_BYTES {
@@ -154,16 +153,12 @@ pub fn read_frame(handle: HANDLE) -> Result<Vec<u8>> {
         )));
     }
 
-    let mut frame = Vec::with_capacity(IPC_FRAME_LENGTH_BYTES + len);
-    frame.extend_from_slice(&len_buf);
     let mut payload = vec![0_u8; len];
     read_exact(handle, &mut payload)?;
-    frame.extend_from_slice(&payload);
-    payload.zeroize();
-    Ok(frame)
+    Ok(payload)
 }
 
-pub fn read_exact(handle: HANDLE, buf: &mut [u8]) -> Result<()> {
+fn read_exact(handle: HANDLE, buf: &mut [u8]) -> Result<()> {
     let mut offset = 0;
     while offset < buf.len() {
         let read = read_once(handle, &mut buf[offset..])?;
@@ -177,7 +172,7 @@ pub fn read_exact(handle: HANDLE, buf: &mut [u8]) -> Result<()> {
     Ok(())
 }
 
-pub fn write_all(handle: HANDLE, buf: &[u8]) -> Result<()> {
+fn write_all(handle: HANDLE, buf: &[u8]) -> Result<()> {
     let mut offset = 0;
     while offset < buf.len() {
         let written = write_once(handle, &buf[offset..])?;
@@ -223,7 +218,7 @@ fn write_once(handle: HANDLE, buf: &[u8]) -> Result<usize> {
 ///
 /// `overlapped` must point to a valid `OVERLAPPED` whose event handle remains
 /// valid for the duration of this call.
-pub unsafe fn complete_overlapped(
+unsafe fn complete_overlapped(
     handle: HANDLE,
     overlapped: *mut OVERLAPPED,
     immediate_ok: i32,
