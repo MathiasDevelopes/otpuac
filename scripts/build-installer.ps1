@@ -33,14 +33,10 @@ function Resolve-Wix {
 function Install-WixExtensions {
     param([string]$Wix)
 
-    $installed = & $Wix extension list --global
-    Assert-LastExitCode "wix extension list"
-
+    # Adding an extension that is already in the global cache is a no-op.
     foreach ($extension in @("WixToolset.UI.wixext", "WixToolset.Util.wixext")) {
-        if (-not ($installed | Select-String -SimpleMatch "$extension $WixVersion")) {
-            & $Wix extension add --global "$extension/$WixVersion"
-            Assert-LastExitCode "wix extension add $extension"
-        }
+        & $Wix extension add -g "$extension/$WixVersion"
+        Assert-LastExitCode "wix extension add $extension"
     }
 }
 
