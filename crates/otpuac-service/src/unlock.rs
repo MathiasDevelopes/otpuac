@@ -7,16 +7,17 @@ use otpuac_runtime::default_protector;
 use std::collections::VecDeque;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
+use zeroize::Zeroize;
 
 const MAX_FAILURES: usize = 5;
 const FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const LOCKOUT_DURATION: Duration = Duration::from_secs(300);
 const REDACTED_PASSWORD: &str = "<redacted>";
 
-#[cfg(debug_assertions)]
 pub(crate) fn redact_response(mut response: ProviderUnlockResponse) -> ProviderUnlockResponse {
     if let UnlockDecision::Approved { password, .. } = &mut response.decision {
-        *password = REDACTED_PASSWORD.to_string();
+        password.zeroize();
+        password.push_str(REDACTED_PASSWORD);
     }
     response
 }
@@ -133,13 +134,19 @@ pub(crate) fn handle_unlock_request_with_limiter(
     let request_id = request.request_id.clone();
     if request.usage_scenario != CRED_UI_USAGE_SCENARIO {
         audit::unlock_rejected(&request_id, "unsupported usage scenario");
-        return Ok(unsupported_usage_response(request_id));
+        return Ok(denied_response(
+            request_id,
+            UnlockFailureReason::UnsupportedUsageScenario,
+        ));
     }
 
     let now = SystemTime::now();
     if rate_limiter.is_limited(now) {
         audit::unlock_rate_limited(&request_id);
-        return Ok(rate_limited_response(request_id));
+        return Ok(denied_response(
+            request_id,
+            UnlockFailureReason::RateLimited,
+        ));
     }
 
     let protector = default_protector();
@@ -155,7 +162,10 @@ pub(crate) fn handle_unlock_request_with_limiter(
         Err(otpuac_core::OtpuacError::InvalidTotpCode | otpuac_core::OtpuacError::TotpRejected) => {
             rate_limiter.record_failure(now);
             audit::unlock_rejected(&request_id, "invalid TOTP code");
-            return Ok(invalid_code_response(request_id));
+            return Ok(denied_response(
+                request_id,
+                UnlockFailureReason::InvalidCode,
+            ));
         }
         Err(err) => {
             audit::vault_error(&request_id, err.to_string());
@@ -166,7 +176,10 @@ pub(crate) fn handle_unlock_request_with_limiter(
     if rate_limiter.is_replay(step) {
         rate_limiter.record_failure(now);
         audit::unlock_rejected(&request_id, "replayed TOTP code");
-        return Ok(replay_detected_response(request_id));
+        return Ok(denied_response(
+            request_id,
+            UnlockFailureReason::ReplayDetected,
+        ));
     }
 
     let credential = match vault.release_credential(&protector) {
@@ -190,11 +203,16 @@ fn unlock_error_response(request_id: String) -> ProviderUnlockResponse {
     }
 }
 
-fn denied_response(
-    request_id: String,
-    reason: UnlockFailureReason,
-    message: &'static str,
-) -> ProviderUnlockResponse {
+fn denied_response(request_id: String, reason: UnlockFailureReason) -> ProviderUnlockResponse {
+    let message = match reason {
+        UnlockFailureReason::UnsupportedUsageScenario => {
+            "OTPUAC only supports UAC Credential UI requests"
+        }
+        UnlockFailureReason::RateLimited => "Too many failed attempts; wait before trying again",
+        UnlockFailureReason::InvalidCode => "TOTP code was rejected",
+        UnlockFailureReason::ReplayDetected => "This TOTP code was already used",
+    };
+
     ProviderUnlockResponse {
         request_id,
         decision: UnlockDecision::Denied {
@@ -204,57 +222,25 @@ fn denied_response(
     }
 }
 
-fn unsupported_usage_response(request_id: String) -> ProviderUnlockResponse {
-    denied_response(
-        request_id,
-        UnlockFailureReason::UnsupportedUsageScenario,
-        "OTPUAC only supports UAC Credential UI requests",
-    )
-}
-
-fn rate_limited_response(request_id: String) -> ProviderUnlockResponse {
-    denied_response(
-        request_id,
-        UnlockFailureReason::RateLimited,
-        "Too many failed attempts; wait before trying again",
-    )
-}
-
-fn invalid_code_response(request_id: String) -> ProviderUnlockResponse {
-    denied_response(
-        request_id,
-        UnlockFailureReason::InvalidCode,
-        "TOTP code was rejected",
-    )
-}
-
-fn replay_detected_response(request_id: String) -> ProviderUnlockResponse {
-    denied_response(
-        request_id,
-        UnlockFailureReason::ReplayDetected,
-        "This TOTP code was already used",
-    )
-}
-
 fn approved_response(
     request_id: String,
     mut credential: otpuac_core::ReleasedCredential,
     emit_secret: bool,
 ) -> ProviderUnlockResponse {
-    let password = if emit_secret {
-        std::mem::take(&mut credential.password)
-    } else {
-        REDACTED_PASSWORD.to_string()
-    };
     let account = credential.account.clone();
-
-    ProviderUnlockResponse {
+    let response = ProviderUnlockResponse {
         request_id,
         decision: UnlockDecision::Approved {
             username: account.username,
             domain: account.domain,
-            password,
+            password: std::mem::take(&mut credential.password),
         },
+    };
+
+    if emit_secret {
+        response
+    } else {
+        redact_response(response)
     }
 }
 
@@ -267,6 +253,59 @@ fn failure_expired(now: SystemTime, failure: SystemTime, window: Duration) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn released_credential(password: &str) -> otpuac_core::ReleasedCredential {
+        otpuac_core::ReleasedCredential {
+            account: otpuac_core::ManagedAccount {
+                username: "otpuac-admin".to_string(),
+                domain: Some("HOST".to_string()),
+            },
+            password: password.to_string(),
+        }
+    }
+
+    fn approved_password(response: &ProviderUnlockResponse) -> &str {
+        match &response.decision {
+            UnlockDecision::Approved { password, .. } => password,
+            other => panic!("expected approved decision, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn approved_response_redacts_password_unless_emitting_secret() {
+        let redacted = approved_response("r1".to_string(), released_credential("s3cret"), false);
+        assert_eq!(approved_password(&redacted), REDACTED_PASSWORD);
+
+        let emitted = approved_response("r2".to_string(), released_credential("s3cret"), true);
+        assert_eq!(approved_password(&emitted), "s3cret");
+    }
+
+    #[test]
+    fn denied_response_uses_reason_message() {
+        let cases = [
+            (
+                UnlockFailureReason::UnsupportedUsageScenario,
+                "OTPUAC only supports UAC Credential UI requests",
+            ),
+            (
+                UnlockFailureReason::RateLimited,
+                "Too many failed attempts; wait before trying again",
+            ),
+            (UnlockFailureReason::InvalidCode, "TOTP code was rejected"),
+            (
+                UnlockFailureReason::ReplayDetected,
+                "This TOTP code was already used",
+            ),
+        ];
+
+        for (reason, expected) in cases {
+            let response = denied_response("r".to_string(), reason);
+            match &response.decision {
+                UnlockDecision::Denied { message, .. } => assert_eq!(message, expected),
+                other => panic!("expected denied decision, got {other:?}"),
+            }
+        }
+    }
 
     #[test]
     fn rate_limiter_blocks_after_configured_failures() {
