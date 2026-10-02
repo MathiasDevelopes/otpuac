@@ -1,7 +1,11 @@
-use otpuac_core::Result;
+use otpuac_core::{now_unix, ManagedAccount, Result};
+use otpuac_runtime::paths::SERVICE_NAME;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+const SETUP_METADATA_VERSION: u32 = 1;
+const MANAGED_LOCAL_ADMIN_INSTALL_KIND: &str = "managed-local-admin";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct SetupMetadata {
@@ -16,13 +20,39 @@ pub(crate) struct SetupMetadata {
     pub(crate) created_at_unix: u64,
 }
 
-pub(crate) fn read_metadata(path: &Path) -> Result<SetupMetadata> {
-    let bytes = fs::read(path)?;
-    Ok(serde_json::from_slice(&bytes)?)
-}
+impl SetupMetadata {
+    pub(crate) fn new_managed_local_admin(
+        account: &ManagedAccount,
+        account_sid: String,
+        install_dir: &Path,
+    ) -> Self {
+        Self {
+            version: SETUP_METADATA_VERSION,
+            install_kind: MANAGED_LOCAL_ADMIN_INSTALL_KIND.to_string(),
+            managed_account_username: account.username.clone(),
+            managed_account_domain: account.domain.clone(),
+            managed_account_sid: account_sid,
+            managed_account_created_by_otpuac: true,
+            install_dir: install_dir.to_path_buf(),
+            service_name: SERVICE_NAME.to_string(),
+            created_at_unix: now_unix(),
+        }
+    }
 
-pub(crate) fn write_metadata(path: &Path, metadata: &SetupMetadata) -> Result<()> {
-    let bytes = serde_json::to_vec_pretty(metadata)?;
-    fs::write(path, bytes)?;
-    Ok(())
+    pub(crate) fn is_otpuac_install(&self) -> bool {
+        self.version == SETUP_METADATA_VERSION
+            && self.install_kind == MANAGED_LOCAL_ADMIN_INSTALL_KIND
+            && self.service_name == SERVICE_NAME
+    }
+
+    pub(crate) fn read_from_path(path: &Path) -> Result<Self> {
+        let bytes = fs::read(path)?;
+        Ok(serde_json::from_slice(&bytes)?)
+    }
+
+    pub(crate) fn write_to_path(&self, path: &Path) -> Result<()> {
+        let bytes = serde_json::to_vec_pretty(self)?;
+        fs::write(path, bytes)?;
+        Ok(())
+    }
 }
