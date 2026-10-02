@@ -73,23 +73,11 @@ pub fn encode_totp_secret(secret: &[u8]) -> String {
     BASE32_NOPAD.encode(secret)
 }
 
-pub fn decode_totp_secret(encoded: &str) -> Result<Zeroizing<Vec<u8>>> {
-    let normalized = normalize_base32_secret(encoded);
-
-    BASE32_NOPAD
-        .decode(normalized.as_bytes())
-        .map(Zeroizing::new)
-        .map_err(|_| OtpuacError::Base32)
-}
-
-pub fn code_at(secret: &[u8], policy: &TotpPolicy, unix_time: u64) -> Result<String> {
+#[cfg(test)]
+pub(crate) fn code_at(secret: &[u8], policy: &TotpPolicy, unix_time: u64) -> Result<String> {
     policy.validate()?;
     let counter = totp_step(unix_time, policy);
     hotp(secret, counter, policy.digits)
-}
-
-pub fn verify_at(secret: &[u8], policy: &TotpPolicy, code: &str, unix_time: u64) -> Result<bool> {
-    Ok(accepted_step_at(secret, policy, code, unix_time)?.is_some())
 }
 
 pub fn accepted_step_at(
@@ -134,15 +122,6 @@ pub fn otpauth_uri(
         digits = policy.digits,
         period = policy.step_seconds
     ))
-}
-
-fn normalize_base32_secret(encoded: &str) -> String {
-    encoded
-        .chars()
-        .filter(|c| !c.is_ascii_whitespace())
-        .filter(|c| *c != '=')
-        .flat_map(char::to_uppercase)
-        .collect()
 }
 
 fn validate_candidate_code(candidate: &str, digits: u32) -> Result<()> {
@@ -243,16 +222,22 @@ mod tests {
         let policy = TotpPolicy::default();
         let code = code_at(secret, &policy, 60).unwrap();
 
-        assert!(verify_at(secret, &policy, &code, 61).unwrap());
-        assert!(verify_at(secret, &policy, &code, 89).unwrap());
-        assert!(!verify_at(secret, &policy, &code, 121).unwrap());
+        assert_eq!(
+            accepted_step_at(secret, &policy, &code, 61).unwrap(),
+            Some(2)
+        );
+        assert_eq!(
+            accepted_step_at(secret, &policy, &code, 89).unwrap(),
+            Some(2)
+        );
+        assert_eq!(accepted_step_at(secret, &policy, &code, 121).unwrap(), None);
     }
 
     #[test]
     fn base32_secret_round_trips() {
         let secret = generate_totp_secret();
         let encoded = encode_totp_secret(&secret);
-        let decoded = decode_totp_secret(&encoded).unwrap();
+        let decoded = BASE32_NOPAD.decode(encoded.as_bytes()).unwrap();
 
         assert_eq!(&*decoded, &*secret);
     }

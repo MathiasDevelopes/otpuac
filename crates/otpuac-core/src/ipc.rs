@@ -8,7 +8,7 @@ use crate::error::{OtpuacError, Result};
 pub const PIPE_NAME: &str = r"\\.\pipe\OTPUAC";
 pub const MAX_IPC_MESSAGE_BYTES: usize = 64 * 1024;
 pub const CRED_UI_USAGE_SCENARIO: &str = "CPUS_CREDUI";
-const FRAME_LENGTH_PREFIX_BYTES: usize = size_of::<u32>();
+pub const FRAME_LENGTH_PREFIX_BYTES: usize = size_of::<u32>();
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ProviderUnlockRequest {
@@ -43,19 +43,10 @@ impl Drop for ProviderUnlockRequest {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProviderUnlockResponse {
     pub request_id: String,
     pub decision: UnlockDecision,
-}
-
-impl fmt::Debug for ProviderUnlockResponse {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ProviderUnlockResponse")
-            .field("request_id", &self.request_id)
-            .field("decision", &self.decision)
-            .finish()
-    }
 }
 
 impl ProviderUnlockResponse {
@@ -145,36 +136,16 @@ pub fn encode_frame<T: Serialize>(message: &T) -> Result<Vec<u8>> {
     Ok(frame)
 }
 
-pub fn decode_frame<T: for<'de> Deserialize<'de>>(frame: &[u8]) -> Result<T> {
-    if frame.len() < FRAME_LENGTH_PREFIX_BYTES {
-        return Err(OtpuacError::InvalidIpc(
-            "frame must include a four-byte length prefix".to_string(),
-        ));
-    }
-
-    let (declared_len, payload) = split_frame(frame)?;
-    let len = declared_len as usize;
-    if len > MAX_IPC_MESSAGE_BYTES {
+/// Decodes the payload of a frame, i.e. the bytes that follow its length prefix.
+pub fn decode_frame<T: for<'de> Deserialize<'de>>(payload: &[u8]) -> Result<T> {
+    if payload.len() > MAX_IPC_MESSAGE_BYTES {
         return Err(OtpuacError::InvalidIpc(format!(
-            "declared message is too large: {len} bytes"
-        )));
-    }
-    if payload.len() != len {
-        return Err(OtpuacError::InvalidIpc(format!(
-            "declared message length {len} does not match frame payload length {}",
+            "message is too large: {} bytes",
             payload.len()
         )));
     }
 
     serde_json::from_slice(payload).map_err(Into::into)
-}
-
-fn split_frame(frame: &[u8]) -> Result<(u32, &[u8])> {
-    let (prefix, payload) = frame.split_at(FRAME_LENGTH_PREFIX_BYTES);
-    let len = u32::from_le_bytes(prefix.try_into().map_err(|_| {
-        OtpuacError::InvalidIpc("frame length prefix must be four bytes".to_string())
-    })?);
-    Ok((len, payload))
 }
 
 #[cfg(test)]
@@ -186,7 +157,12 @@ mod tests {
         let request = ProviderUnlockRequest::credential_ui("req", "123456");
 
         let frame = encode_frame(&request).unwrap();
-        let decoded = decode_frame::<ProviderUnlockRequest>(&frame).unwrap();
+        let (prefix, payload) = frame.split_at(FRAME_LENGTH_PREFIX_BYTES);
+        assert_eq!(
+            u32::from_le_bytes(prefix.try_into().unwrap()) as usize,
+            payload.len()
+        );
+        let decoded = decode_frame::<ProviderUnlockRequest>(payload).unwrap();
 
         assert_eq!(decoded.request_id, request.request_id);
         assert_eq!(decoded.usage_scenario, request.usage_scenario);
