@@ -6,8 +6,8 @@ license.workspace = true
 
 [dependencies]
 clap.workspace = true
-otpuac-core = { path = "../otpuac-core" }
-otpuac-runtime = { path = "../otpuac-runtime" }
+otpuac-core.workspace = true
+otpuac-runtime.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
@@ -15,8 +15,8 @@ tracing-subscriber.workspace = true
 zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-otpuac-windows = { path = "../otpuac-windows" }
-windows-service = "0.8"
+otpuac-windows.workspace = true
+windows-service.workspace = true
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Security",

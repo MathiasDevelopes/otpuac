@@ -12,9 +12,9 @@ use registry::{register_server, unregister_server};
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicIsize, Ordering};
-use windows_sys::core::{GUID, HRESULT};
+use windows_sys::core::{BOOL, GUID, HRESULT};
 use windows_sys::Win32::Foundation::{
-    BOOL, CLASS_E_CLASSNOTAVAILABLE, E_INVALIDARG, HINSTANCE, S_FALSE, S_OK,
+    CLASS_E_CLASSNOTAVAILABLE, E_INVALIDARG, HINSTANCE, S_FALSE, S_OK,
 };
 use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
 

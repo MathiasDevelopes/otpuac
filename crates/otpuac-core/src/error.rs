@@ -35,7 +35,7 @@ pub enum OtpuacError {
     Platform(String),
 
     #[error("base64 error: {0}")]
-    Base64(#[from] base64::DecodeError),
+    Base64(#[from] data_encoding::DecodeError),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

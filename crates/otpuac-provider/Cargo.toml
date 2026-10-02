@@ -8,12 +8,11 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-otpuac-core = { path = "../otpuac-core" }
-serde_json.workspace = true
+otpuac-core.workspace = true
 zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-otpuac-windows = { path = "../otpuac-windows" }
+otpuac-windows.workspace = true
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Security",

@@ -1,5 +1,6 @@
-use rand::rngs::OsRng;
-use rand::seq::SliceRandom;
+use rand::rand_core::UnwrapErr;
+use rand::rngs::SysRng;
+use rand::seq::{IndexedRandom, SliceRandom};
 use zeroize::Zeroizing;
 
 const PASSWORD_LEN: usize = 32;
@@ -12,7 +13,7 @@ const PASSWORD_ALPHABET: &[u8] =
     b"abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!#$%+-.=?@_";
 
 pub(crate) fn generate_windows_password() -> Zeroizing<String> {
-    let mut rng = OsRng;
+    let mut rng = UnwrapErr(SysRng);
     let mut bytes = Vec::with_capacity(PASSWORD_LEN);
     for class in PASSWORD_CLASSES {
         bytes.push(*class.choose(&mut rng).expect("password class is non-empty"));
