@@ -142,7 +142,7 @@
     <!-- Creates the managed account and vault, or adopts an existing install. -->
     <CustomAction
       Id="OtpuacProvision"
-      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORTNAME)"
+      BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixQuietExec"
       Execute="deferred"
       Impersonate="no"
@@ -150,7 +150,7 @@
     <!-- Undoes a fresh provision if a later step of the same install fails. -->
     <CustomAction
       Id="OtpuacProvisionRollback"
-      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORTNAME)"
+      BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixQuietExec"
       Execute="rollback"
       Impersonate="no"
@@ -158,7 +158,7 @@
     <!-- Deletes the managed account and the OTPUAC ProgramData directory. -->
     <CustomAction
       Id="OtpuacCleanup"
-      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORTNAME)"
+      BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixQuietExec"
       Execute="deferred"
       Impersonate="no"

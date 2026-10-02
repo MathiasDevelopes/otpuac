@@ -39,7 +39,7 @@
       Return="ignore" />
     <CustomAction
       Id="OtpuacDeleteEnrollment"
-      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORTNAME)"
+      BinaryRef="Wix4UtilCA_X64"
       DllEntry="WixQuietExec"
       Execute="immediate"
       Return="ignore" />
