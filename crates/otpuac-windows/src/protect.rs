@@ -1,4 +1,10 @@
+use crate::system::LocalAllocPtr;
 use otpuac_core::{OtpuacError, Result, SecretProtector};
+use std::ptr;
+use windows_sys::Win32::Security::Cryptography::{
+    CryptProtectData, CryptUnprotectData, CRYPTPROTECT_LOCAL_MACHINE, CRYPT_INTEGER_BLOB,
+};
+use zeroize::Zeroize;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DpapiProtector;
@@ -9,7 +15,7 @@ impl SecretProtector for DpapiProtector {
     }
 
     fn protect(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        dpapi_protect(plaintext, true)
+        dpapi_protect(plaintext)
     }
 
     fn unprotect(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
@@ -17,35 +23,18 @@ impl SecretProtector for DpapiProtector {
     }
 }
 
-fn dpapi_protect(plaintext: &[u8], local_machine: bool) -> Result<Vec<u8>> {
-    use std::ptr;
-    use windows_sys::Win32::Foundation::LocalFree;
-    use windows_sys::Win32::Security::Cryptography::{
-        CryptProtectData, CRYPTPROTECT_LOCAL_MACHINE, CRYPT_INTEGER_BLOB,
-    };
-
-    let mut input = CRYPT_INTEGER_BLOB {
-        cbData: plaintext.len() as u32,
-        pbData: plaintext.as_ptr() as *mut u8,
-    };
-    let mut output = CRYPT_INTEGER_BLOB {
-        cbData: 0,
-        pbData: ptr::null_mut(),
-    };
-    let flags = if local_machine {
-        CRYPTPROTECT_LOCAL_MACHINE
-    } else {
-        0
-    };
+fn dpapi_protect(plaintext: &[u8]) -> Result<Vec<u8>> {
+    let input = input_blob(plaintext);
+    let mut output = empty_blob();
 
     let ok = unsafe {
         CryptProtectData(
-            &mut input,
+            &input,
             ptr::null(),
             ptr::null_mut(),
             ptr::null_mut(),
             ptr::null_mut(),
-            flags,
+            CRYPTPROTECT_LOCAL_MACHINE,
             &mut output,
         )
     };
@@ -54,34 +43,16 @@ fn dpapi_protect(plaintext: &[u8], local_machine: bool) -> Result<Vec<u8>> {
         return Err(OtpuacError::Crypto("CryptProtectData failed".to_string()));
     }
 
-    let protected = unsafe {
-        let slice = std::slice::from_raw_parts(output.pbData, output.cbData as usize);
-        let protected = slice.to_vec();
-        LocalFree(output.pbData.cast());
-        protected
-    };
-
-    Ok(protected)
+    Ok(unsafe { take_output_blob(output, false) })
 }
 
 fn dpapi_unprotect(ciphertext: &[u8]) -> Result<Vec<u8>> {
-    use std::ptr;
-    use windows_sys::Win32::Foundation::LocalFree;
-    use windows_sys::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
-    use zeroize::Zeroize;
-
-    let mut input = CRYPT_INTEGER_BLOB {
-        cbData: ciphertext.len() as u32,
-        pbData: ciphertext.as_ptr() as *mut u8,
-    };
-    let mut output = CRYPT_INTEGER_BLOB {
-        cbData: 0,
-        pbData: ptr::null_mut(),
-    };
+    let input = input_blob(ciphertext);
+    let mut output = empty_blob();
 
     let ok = unsafe {
         CryptUnprotectData(
-            &mut input,
+            &input,
             ptr::null_mut(),
             ptr::null_mut(),
             ptr::null_mut(),
@@ -95,13 +66,34 @@ fn dpapi_unprotect(ciphertext: &[u8]) -> Result<Vec<u8>> {
         return Err(OtpuacError::Crypto("CryptUnprotectData failed".to_string()));
     }
 
-    let plaintext = unsafe {
-        let slice = std::slice::from_raw_parts_mut(output.pbData, output.cbData as usize);
-        let plaintext = slice.to_vec();
-        slice.zeroize();
-        LocalFree(output.pbData.cast());
-        plaintext
-    };
+    Ok(unsafe { take_output_blob(output, true) })
+}
 
-    Ok(plaintext)
+fn input_blob(data: &[u8]) -> CRYPT_INTEGER_BLOB {
+    CRYPT_INTEGER_BLOB {
+        cbData: data.len() as u32,
+        pbData: data.as_ptr() as *mut u8,
+    }
+}
+
+fn empty_blob() -> CRYPT_INTEGER_BLOB {
+    CRYPT_INTEGER_BLOB {
+        cbData: 0,
+        pbData: ptr::null_mut(),
+    }
+}
+
+/// Copies a DPAPI output blob, optionally zeroizes it, then frees it.
+///
+/// # Safety
+///
+/// `blob` must be an output blob filled by a successful DPAPI call.
+unsafe fn take_output_blob(blob: CRYPT_INTEGER_BLOB, zeroize: bool) -> Vec<u8> {
+    let _allocation = LocalAllocPtr::from_raw(blob.pbData.cast());
+    let slice = std::slice::from_raw_parts_mut(blob.pbData, blob.cbData as usize);
+    let data = slice.to_vec();
+    if zeroize {
+        slice.zeroize();
+    }
+    data
 }

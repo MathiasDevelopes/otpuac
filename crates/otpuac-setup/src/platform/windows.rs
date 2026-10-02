@@ -1,7 +1,6 @@
 mod account;
 mod error;
 mod event_log;
-mod local_alloc;
 mod provider;
 mod registry;
 mod security;
