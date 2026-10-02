@@ -24,24 +24,24 @@ fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
+    #[cfg(debug_assertions)]
+    let vault_path = cli.vault.unwrap_or_else(default_vault_path);
 
     match cli.command {
         #[cfg(debug_assertions)]
         Command::Check { code } => {
-            let vault_path = cli.vault.unwrap_or_else(default_vault_path);
-            let request = credential_ui_request("debug-check", code);
+            let request = ProviderUnlockRequest::credential_ui("debug-check", code);
             let response = handle_unlock_request(&vault_path, request, false)?;
             print_json_pretty(&response)?;
         }
         #[cfg(debug_assertions)]
         Command::PipeCheck { code } => {
-            let request = credential_ui_request("pipe-check", code);
+            let request = ProviderUnlockRequest::credential_ui("pipe-check", code);
             let response = pipe_check(request)?;
             print_json_pretty(&redact_response(response))?;
         }
         #[cfg(debug_assertions)]
         Command::ServeForeground => {
-            let vault_path = cli.vault.unwrap_or_else(default_vault_path);
             serve_foreground(&vault_path)?;
         }
         #[cfg(debug_assertions)]
@@ -49,7 +49,6 @@ fn main() -> Result<()> {
             request_json,
             emit_secret,
         } => {
-            let vault_path = cli.vault.unwrap_or_else(default_vault_path);
             let request = serde_json::from_str::<ProviderUnlockRequest>(&request_json)?;
             let response = handle_unlock_request(&vault_path, request, emit_secret)?;
             println!("{}", serde_json::to_string(&response)?);
@@ -58,11 +57,6 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-#[cfg(debug_assertions)]
-fn credential_ui_request(request_id: &str, totp_code: String) -> ProviderUnlockRequest {
-    ProviderUnlockRequest::credential_ui(request_id, totp_code)
 }
 
 #[cfg(debug_assertions)]
