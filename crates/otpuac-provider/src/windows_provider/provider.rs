@@ -193,9 +193,10 @@ unsafe extern "system" fn provider_set_usage_scenario(
     (*this).usage_scenario = cpus;
     (*this).cred_ui_flags = flags;
     if !(*this).credential.is_null() {
-        credential::set_usage_scenario((*this).credential, cpus, flags);
+        credential::set_cred_ui_flags((*this).credential, flags);
     }
-    ensure_credential(this)
+    ensure_credential(this);
+    S_OK
 }
 
 unsafe extern "system" fn provider_set_serialization(
@@ -261,10 +262,7 @@ unsafe extern "system" fn provider_get_credential_count(
         *auto_logon = 0;
         return S_OK;
     }
-    let hr = ensure_credential(this);
-    if hr != S_OK {
-        return hr;
-    }
+    ensure_credential(this);
     *count = 1;
     *default = CREDENTIAL_PROVIDER_NO_DEFAULT;
     *auto_logon = 0;
@@ -286,20 +284,14 @@ unsafe extern "system" fn provider_get_credential_at(
     if (*this).usage_scenario != CPUS_CREDUI {
         return E_NOTIMPL;
     }
-    let hr = ensure_credential(this);
-    if hr != S_OK {
-        return hr;
-    }
+    ensure_credential(this);
     credential::credential_add_ref((*this).credential);
     *credential = (*this).credential.cast();
     S_OK
 }
 
-unsafe fn ensure_credential(provider: *mut Provider) -> HRESULT {
-    if !(*provider).credential.is_null() {
-        return S_OK;
+unsafe fn ensure_credential(provider: *mut Provider) {
+    if (*provider).credential.is_null() {
+        (*provider).credential = credential::new_credential((*provider).cred_ui_flags);
     }
-    (*provider).credential =
-        credential::new_credential((*provider).usage_scenario, (*provider).cred_ui_flags);
-    S_OK
 }

@@ -8,9 +8,7 @@ use super::ids::{
 use super::ipc::request_unlock;
 use super::{dll_add_ref, dll_release};
 use otpuac_core::{ManagedAccount, UnlockDecision};
-use otpuac_windows::wide::{
-    duplicate_wide_to_com, secure_zero_u16, wide_null, wide_ptr_to_vec, wide_vec_to_string,
-};
+use otpuac_windows::wide::{duplicate_wide_to_com, wide_null, wide_ptr_to_vec};
 use std::ffi::c_void;
 use std::mem::zeroed;
 use std::ptr;
@@ -23,7 +21,6 @@ use windows_sys::Win32::UI::Shell::{
     CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION as CredentialProviderCredentialSerialization,
     CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE, CREDENTIAL_PROVIDER_FIELD_STATE,
     CREDENTIAL_PROVIDER_GET_SERIALIZATION_RESPONSE, CREDENTIAL_PROVIDER_STATUS_ICON,
-    CREDENTIAL_PROVIDER_USAGE_SCENARIO,
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -35,7 +32,6 @@ const STATUS_PACK_FAILED: &str = "Could not pack the managed credential";
 pub(super) struct Credential {
     vtbl: *const CredentialVtbl,
     ref_count: AtomicU32,
-    usage_scenario: CREDENTIAL_PROVIDER_USAGE_SCENARIO,
     cred_ui_flags: u32,
     totp_code: Vec<u16>,
     status: Vec<u16>,
@@ -119,14 +115,10 @@ static CREDENTIAL_VTBL: CredentialVtbl = CredentialVtbl {
     get_user_sid: credential_get_user_sid,
 };
 
-pub(super) unsafe fn new_credential(
-    usage_scenario: CREDENTIAL_PROVIDER_USAGE_SCENARIO,
-    cred_ui_flags: u32,
-) -> *mut Credential {
+pub(super) unsafe fn new_credential(cred_ui_flags: u32) -> *mut Credential {
     let credential = Box::into_raw(Box::new(Credential {
         vtbl: &CREDENTIAL_VTBL,
         ref_count: AtomicU32::new(1),
-        usage_scenario,
         cred_ui_flags,
         totp_code: Vec::new(),
         status: Vec::new(),
@@ -135,12 +127,7 @@ pub(super) unsafe fn new_credential(
     credential
 }
 
-pub(super) unsafe fn set_usage_scenario(
-    this: *mut Credential,
-    usage_scenario: CREDENTIAL_PROVIDER_USAGE_SCENARIO,
-    cred_ui_flags: u32,
-) {
-    (*this).usage_scenario = usage_scenario;
+pub(super) unsafe fn set_cred_ui_flags(this: *mut Credential, cred_ui_flags: u32) {
     (*this).cred_ui_flags = cred_ui_flags;
 }
 
@@ -175,7 +162,7 @@ pub(super) unsafe extern "system" fn credential_add_ref(this: *mut Credential) -
 pub(super) unsafe extern "system" fn credential_release(this: *mut Credential) -> u32 {
     let count = (*this).ref_count.fetch_sub(1, Ordering::SeqCst) - 1;
     if count == 0 {
-        secure_zero_u16(&mut (*this).totp_code);
+        // Drop zeroizes the TOTP code.
         drop(Box::from_raw(this));
         dll_release();
     }
@@ -318,7 +305,7 @@ unsafe extern "system" fn credential_set_string_value(
     if field_id != FIELD_TOTP || value.is_null() {
         return E_INVALIDARG;
     }
-    secure_zero_u16(&mut (*this).totp_code);
+    (*this).totp_code.zeroize();
     (*this).totp_code = wide_ptr_to_vec(value, 16);
     S_OK
 }
@@ -366,7 +353,7 @@ unsafe extern "system" fn credential_get_serialization(
     *status_icon = CPSI_NONE;
     *serialization = zeroed();
 
-    let code = Zeroizing::new(wide_vec_to_string(&(*this).totp_code));
+    let code = Zeroizing::new(String::from_utf16_lossy(&(*this).totp_code));
     if code.trim().is_empty() {
         set_error_status(this, STATUS_ENTER_CODE, status_text, status_icon);
         return S_OK;
@@ -397,11 +384,9 @@ unsafe extern "system" fn credential_get_serialization(
             }
             hr
         }
-        Ok(UnlockDecision::Denied { message, .. }) => {
-            set_error_status(this, &message, status_text, status_icon);
-            S_OK
-        }
-        Ok(UnlockDecision::Error { message }) | Err(message) => {
+        Ok(UnlockDecision::Denied { message, .. })
+        | Ok(UnlockDecision::Error { message })
+        | Err(message) => {
             set_error_status(this, &message, status_text, status_icon);
             S_OK
         }
@@ -458,6 +443,6 @@ unsafe fn set_status(credential: *mut Credential, message: &str) {
 }
 
 unsafe fn clear_totp_code(credential: *mut Credential) {
-    secure_zero_u16(&mut (*credential).totp_code);
-    (*credential).totp_code.clear();
+    // Vec::zeroize wipes the contents and clears the length.
+    (*credential).totp_code.zeroize();
 }
