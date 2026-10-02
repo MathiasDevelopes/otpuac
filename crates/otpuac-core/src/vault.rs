@@ -117,27 +117,6 @@ impl VaultFile {
         Ok(encode_totp_secret(&secret))
     }
 
-    pub fn unlock(
-        &self,
-        code: &str,
-        unix_time: u64,
-        protector: &impl SecretProtector,
-    ) -> Result<ReleasedCredential> {
-        self.unlock_with_step(code, unix_time, protector)
-            .map(|(credential, _step)| credential)
-    }
-
-    pub fn unlock_with_step(
-        &self,
-        code: &str,
-        unix_time: u64,
-        protector: &impl SecretProtector,
-    ) -> Result<(ReleasedCredential, u64)> {
-        let step = self.accepted_totp_step(code, unix_time, protector)?;
-        let credential = self.release_credential(protector)?;
-        Ok((credential, step))
-    }
-
     pub fn accepted_totp_step(
         &self,
         code: &str,
@@ -258,7 +237,12 @@ mod tests {
         .unwrap();
         let code = code_at(secret, &policy, 1_700_000_000).unwrap();
 
-        let credential = vault.unlock(&code, 1_700_000_000, &protector).unwrap();
+        let step = vault
+            .accepted_totp_step(&code, 1_700_000_000, &protector)
+            .unwrap();
+        let credential = vault.release_credential(&protector).unwrap();
+
+        assert_eq!(step, 1_700_000_000 / policy.step_seconds);
 
         assert_eq!(credential.account.label(), "TESTPC\\admin");
         assert_eq!(credential.password, "correct horse battery staple");
@@ -282,7 +266,7 @@ mod tests {
         .unwrap();
 
         assert!(matches!(
-            vault.unlock("000000", 1_700_000_000, &protector),
+            vault.accepted_totp_step("000000", 1_700_000_000, &protector),
             Err(OtpuacError::TotpRejected)
         ));
     }
