@@ -13,8 +13,8 @@ use std::ffi::c_void;
 use std::mem::zeroed;
 use std::ptr;
 use std::sync::atomic::{AtomicU32, Ordering};
-use windows_sys::core::{GUID, HRESULT};
-use windows_sys::Win32::Foundation::{BOOL, E_INVALIDARG, E_NOTIMPL, S_FALSE, S_OK};
+use windows_sys::core::{BOOL, GUID, HRESULT};
+use windows_sys::Win32::Foundation::{E_INVALIDARG, E_NOTIMPL, S_FALSE, S_OK};
 use windows_sys::Win32::Security::Credentials::CREDUIWIN_PACK_32_WOW;
 use windows_sys::Win32::UI::Shell::{
     CPGSR_NO_CREDENTIAL_NOT_FINISHED, CPGSR_RETURN_CREDENTIAL_FINISHED, CPSI_ERROR, CPSI_NONE,

@@ -17,18 +17,22 @@ license = "GPL-3.0-only"
 license-file = "LICENSE"
 
 [workspace.dependencies]
-base64 = "0.22"
-clap = { version = "4.5", features = ["derive"] }
-data-encoding = "2.6"
-hmac = "0.12"
-rand = "0.8"
-rpassword = "7.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-sha1 = "0.10"
+otpuac-core = { path = "crates/otpuac-core" }
+otpuac-runtime = { path = "crates/otpuac-runtime" }
+otpuac-windows = { path = "crates/otpuac-windows" }
+
+clap = { version = "4.6", features = ["derive"] }
+data-encoding = "2.11"
+hmac = "0.13"
+rand = { version = "0.10", default-features = false, features = ["std", "sys_rng"] }
+rpassword = "7.5"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha1 = { version = "0.11", default-features = false }
 subtle = "2.6"
-thiserror = "2.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-windows-sys = "0.59"
-zeroize = "1.8"
+thiserror = "2.0.18"
+tracing = { version = "0.1.44", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["ansi", "env-filter", "fmt", "std"] }
+windows-service = "0.8.1"
+windows-sys = "0.61"
+zeroize = "1.9"

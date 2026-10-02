@@ -5,8 +5,8 @@ use super::{dll_add_ref, dll_release};
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicU32, Ordering};
-use windows_sys::core::{GUID, HRESULT};
-use windows_sys::Win32::Foundation::{BOOL, CLASS_E_NOAGGREGATION, E_INVALIDARG, S_OK};
+use windows_sys::core::{BOOL, GUID, HRESULT};
+use windows_sys::Win32::Foundation::{CLASS_E_NOAGGREGATION, E_INVALIDARG, S_OK};
 
 #[repr(C)]
 struct ClassFactory {
