@@ -1,6 +1,6 @@
 use crate::enrollment::write_enrollment_file;
 use crate::machine::local_machine_domain;
-use crate::metadata::{read_metadata, write_metadata, SetupMetadata};
+use crate::metadata::SetupMetadata;
 use crate::password::generate_windows_password;
 use crate::platform;
 use crate::validation::{validate_installed_files, validate_local_account_name};
@@ -9,7 +9,7 @@ use otpuac_core::{
 };
 use otpuac_runtime::{
     default_protector,
-    paths::{setup_metadata_path, vault_path, PROVIDER_DLL, SERVICE_EXE, SERVICE_NAME},
+    paths::{setup_metadata_path, vault_path, PROVIDER_DLL, SERVICE_EXE},
 };
 use serde::Serialize;
 use std::fs;
@@ -32,27 +32,28 @@ pub(crate) fn install_managed(
     let vault_path = vault_path(&program_data);
     let protector = default_protector();
 
-    let mut rollback_account = None;
-    let (metadata, vault) =
-        if let Some(installed) = read_existing_install(&metadata_path, &vault_path)? {
-            installed
-        } else {
-            let provisioned = provision_new_install(
-                &account_name,
-                issuer,
-                &install_dir,
-                &metadata_path,
-                &vault_path,
-                &protector,
-            )?;
-            rollback_account = Some(provisioned.rollback_account_name.clone());
-            (provisioned.metadata, provisioned.vault)
+    let (metadata, vault, is_new_install) =
+        match read_existing_install(&metadata_path, &vault_path)? {
+            Some((metadata, vault)) => (metadata, vault, false),
+            None => {
+                let (metadata, vault) = provision_new_install(
+                    &account_name,
+                    issuer,
+                    &install_dir,
+                    &metadata_path,
+                    &vault_path,
+                    &protector,
+                )?;
+                (metadata, vault, true)
+            }
         };
 
     if let Err(err) =
         configure_install(&install_dir, enrollment_file, &metadata, &vault, &protector)
     {
-        rollback_new_install(rollback_account.take(), &metadata_path, &vault_path);
+        if is_new_install {
+            rollback_new_install(&account_name, &metadata_path, &vault_path);
+        }
         return Err(err);
     }
 
@@ -85,7 +86,7 @@ pub(crate) fn uninstall(
 ) -> Result<()> {
     let metadata_path = setup_metadata_path(&program_data);
     let metadata = if metadata_path.exists() {
-        Some(read_metadata(&metadata_path)?)
+        Some(SetupMetadata::read_from_path(&metadata_path)?)
     } else {
         None
     };
@@ -107,10 +108,9 @@ pub(crate) fn uninstall(
 
     if remove_data {
         validate_remove_data_target(&program_data, metadata.as_ref())?;
-    }
-
-    if remove_data && program_data.exists() {
-        fs::remove_dir_all(&program_data)?;
+        if program_data.exists() {
+            fs::remove_dir_all(&program_data)?;
+        }
     }
 
     println!("OTPUAC uninstall cleanup completed");
@@ -123,7 +123,7 @@ fn read_existing_install(
 ) -> Result<Option<(SetupMetadata, VaultFile)>> {
     match (metadata_path.exists(), vault_path.exists()) {
         (true, true) => Ok(Some((
-            read_metadata(metadata_path)?,
+            SetupMetadata::read_from_path(metadata_path)?,
             VaultFile::read_from_path(vault_path)?,
         ))),
         (false, true) => Err(otpuac_core::OtpuacError::InvalidConfig(format!(
@@ -142,7 +142,7 @@ fn provision_new_install(
     metadata_path: &Path,
     vault_path: &Path,
     protector: &impl SecretProtector,
-) -> Result<ProvisionedInstall> {
+) -> Result<(SetupMetadata, VaultFile)> {
     let password = generate_windows_password();
     let totp_secret = generate_totp_secret();
     let account = ManagedAccount {
@@ -162,28 +162,14 @@ fn provision_new_install(
         let vault = VaultFile::new(account.clone(), &password, &totp_secret, policy, protector)?;
         vault.write_to_path(vault_path)?;
 
-        let metadata = SetupMetadata {
-            version: 1,
-            install_kind: "managed-local-admin".to_string(),
-            managed_account_username: account.username.clone(),
-            managed_account_domain: account.domain.clone(),
-            managed_account_sid: account_sid,
-            managed_account_created_by_otpuac: true,
-            install_dir: install_dir.to_path_buf(),
-            service_name: SERVICE_NAME.to_string(),
-            created_at_unix: now_unix(),
-        };
-        write_metadata(metadata_path, &metadata)?;
+        let metadata = SetupMetadata::new_managed_local_admin(&account, account_sid, install_dir);
+        metadata.write_to_path(metadata_path)?;
 
-        Ok(ProvisionedInstall {
-            metadata,
-            vault,
-            rollback_account_name: account_name.to_string(),
-        })
+        Ok((metadata, vault))
     })();
 
     if provision_result.is_err() {
-        rollback_new_install(Some(account_name.to_string()), metadata_path, vault_path);
+        rollback_new_install(account_name, metadata_path, vault_path);
     }
     provision_result
 }
@@ -224,10 +210,7 @@ fn validate_remove_data_target(
         ))
     })?;
 
-    if metadata.version != 1
-        || metadata.install_kind != "managed-local-admin"
-        || metadata.service_name != SERVICE_NAME
-    {
+    if !metadata.is_otpuac_install() {
         return Err(otpuac_core::OtpuacError::InvalidConfig(format!(
             "refusing to remove {} because OTPUAC setup metadata is not valid",
             program_data.display()
@@ -237,13 +220,11 @@ fn validate_remove_data_target(
     Ok(())
 }
 
-fn rollback_new_install(account_name: Option<String>, metadata_path: &Path, vault_path: &Path) {
-    if let Some(account_name) = account_name {
-        let _ = platform::unhide_local_account_from_sign_in(&account_name);
-        let _ = platform::delete_local_account(&account_name);
-        let _ = fs::remove_file(metadata_path);
-        let _ = fs::remove_file(vault_path);
-    }
+fn rollback_new_install(account_name: &str, metadata_path: &Path, vault_path: &Path) {
+    let _ = platform::unhide_local_account_from_sign_in(account_name);
+    let _ = platform::delete_local_account(account_name);
+    let _ = fs::remove_file(metadata_path);
+    let _ = fs::remove_file(vault_path);
 }
 
 #[derive(Serialize)]
@@ -252,12 +233,6 @@ struct InstallSummary {
     account: String,
     account_sid: String,
     vault_path: PathBuf,
-}
-
-struct ProvisionedInstall {
-    metadata: SetupMetadata,
-    vault: VaultFile,
-    rollback_account_name: String,
 }
 
 #[cfg(test)]
@@ -288,16 +263,14 @@ mod tests {
     }
 
     fn valid_metadata() -> SetupMetadata {
-        SetupMetadata {
-            version: 1,
-            install_kind: "managed-local-admin".to_string(),
-            managed_account_username: "OTPUACAdmin".to_string(),
-            managed_account_domain: None,
-            managed_account_sid: "S-1-5-21-test".to_string(),
-            managed_account_created_by_otpuac: true,
-            install_dir: PathBuf::from(r"C:\Program Files\OTPUAC"),
-            service_name: SERVICE_NAME.to_string(),
-            created_at_unix: 1,
-        }
+        let account = ManagedAccount {
+            username: "OTPUACAdmin".to_string(),
+            domain: None,
+        };
+        SetupMetadata::new_managed_local_admin(
+            &account,
+            "S-1-5-21-test".to_string(),
+            Path::new(r"C:\Program Files\OTPUAC"),
+        )
     }
 }

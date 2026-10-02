@@ -29,7 +29,7 @@ fn enrollment_contents(
     uri: &str,
     admin: &Path,
 ) -> String {
-    let contents = format!(
+    format!(
         "OTPUAC authenticator enrollment\r\n\
          \r\n\
          Managed account: {account}\r\n\
@@ -53,6 +53,5 @@ fn enrollment_contents(
         secret = secret,
         uri = uri,
         admin = admin.display()
-    );
-    contents
+    )
 }
