@@ -5,4 +5,6 @@ pub mod pipe;
 #[cfg(windows)]
 pub mod protect;
 #[cfg(windows)]
+pub mod system;
+#[cfg(windows)]
 pub mod wide;

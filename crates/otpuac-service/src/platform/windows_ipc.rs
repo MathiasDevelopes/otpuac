@@ -6,23 +6,20 @@ use otpuac_core::ProviderUnlockResponse;
 use otpuac_core::{ProviderUnlockRequest, Result, MAX_IPC_MESSAGE_BYTES, PIPE_NAME};
 use otpuac_runtime::paths::{service_state_path, SERVICE_STATE_FILE};
 #[cfg(debug_assertions)]
-use otpuac_windows::pipe::{connect_client_pipe, DEFAULT_PIPE_CONNECT_ATTEMPTS};
+use otpuac_windows::pipe::connect_default_client_pipe;
 use otpuac_windows::pipe::{
     read_framed_message, wait_for_overlapped, write_framed_message, OverlappedOperation,
     OwnedHandle, DEFAULT_PIPE_CONNECT_TIMEOUT_MS,
 };
+use otpuac_windows::system::{security_descriptor_from_sddl, system32_dir, LocalAllocPtr};
 use otpuac_windows::wide::wide_null;
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
-use std::ptr;
 use windows_sys::Win32::Foundation::{
-    GetLastError, LocalFree, ERROR_BROKEN_PIPE, ERROR_IO_PENDING, ERROR_PIPE_CONNECTED, HANDLE,
+    GetLastError, ERROR_BROKEN_PIPE, ERROR_IO_PENDING, ERROR_PIPE_CONNECTED, HANDLE,
     INVALID_HANDLE_VALUE,
 };
-use windows_sys::Win32::Security::Authorization::{
-    ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
-};
-use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::Storage::FileSystem::{
     FlushFileBuffers, FILE_FLAG_OVERLAPPED, PIPE_ACCESS_DUPLEX,
 };
@@ -30,7 +27,6 @@ use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeClientProcessId,
     PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
-use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
 use windows_sys::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -40,18 +36,6 @@ pub(crate) enum ClientPolicy {
     #[cfg(debug_assertions)]
     AllowAny,
     CredentialUiHostsOnly,
-}
-
-struct LocalSecurityDescriptor(PSECURITY_DESCRIPTOR);
-
-impl Drop for LocalSecurityDescriptor {
-    fn drop(&mut self) {
-        if !self.0.is_null() {
-            unsafe {
-                LocalFree(self.0);
-            }
-        }
-    }
 }
 
 pub(crate) fn serve_pipe(
@@ -109,31 +93,21 @@ fn create_pipe() -> Result<OwnedHandle> {
     Ok(unsafe { OwnedHandle::from_raw(handle) })
 }
 
-fn pipe_security_attributes() -> Result<(SECURITY_ATTRIBUTES, LocalSecurityDescriptor)> {
-    let sddl = wide_null("D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;IU)");
-    let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
-    let ok = unsafe {
-        ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            sddl.as_ptr(),
-            SDDL_REVISION_1,
-            &mut descriptor,
-            ptr::null_mut(),
-        )
-    };
-    if ok == 0 {
-        return Err(otpuac_core::OtpuacError::InvalidIpc(format!(
-            "ConvertStringSecurityDescriptorToSecurityDescriptorW failed with {}",
-            unsafe { GetLastError() }
-        )));
-    }
+fn pipe_security_attributes() -> Result<(SECURITY_ATTRIBUTES, LocalAllocPtr)> {
+    let descriptor = security_descriptor_from_sddl("D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;IU)")
+        .map_err(|code| {
+            otpuac_core::OtpuacError::InvalidIpc(format!(
+                "ConvertStringSecurityDescriptorToSecurityDescriptorW failed with {code}"
+            ))
+        })?;
 
     Ok((
         SECURITY_ATTRIBUTES {
             nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
-            lpSecurityDescriptor: descriptor,
+            lpSecurityDescriptor: descriptor.as_ptr(),
             bInheritHandle: 0,
         },
-        LocalSecurityDescriptor(descriptor),
+        descriptor,
     ))
 }
 
@@ -194,17 +168,9 @@ fn handle_client(
 
 #[cfg(debug_assertions)]
 pub(crate) fn pipe_round_trip(request: ProviderUnlockRequest) -> Result<ProviderUnlockResponse> {
-    let pipe = connect_client_pipe(
-        PIPE_NAME,
-        DEFAULT_PIPE_CONNECT_ATTEMPTS,
-        DEFAULT_PIPE_CONNECT_TIMEOUT_MS,
-    )?;
-
-    let result = (|| {
-        write_framed_message(pipe.raw(), &request)?;
-        read_framed_message::<ProviderUnlockResponse>(pipe.raw())
-    })();
-    result
+    let pipe = connect_default_client_pipe()?;
+    write_framed_message(pipe.raw(), &request)?;
+    read_framed_message::<ProviderUnlockResponse>(pipe.raw())
 }
 
 fn validate_client(handle: HANDLE, _policy: ClientPolicy) -> Result<()> {
@@ -255,7 +221,7 @@ fn client_process_image(handle: HANDLE) -> Result<String> {
 }
 
 fn is_allowed_credential_ui_host(image: &str) -> bool {
-    let system32 = system32_dir().unwrap_or_else(|| PathBuf::from(r"C:\Windows\System32"));
+    let system32 = system32_dir().unwrap_or_else(|_| PathBuf::from(r"C:\Windows\System32"));
 
     ["consent.exe", "LogonUI.exe", "CredentialUIBroker.exe"]
         .iter()
@@ -263,17 +229,6 @@ fn is_allowed_credential_ui_host(image: &str) -> bool {
             normalize_windows_path(image)
                 == normalize_windows_path(&system32.join(exe).display().to_string())
         })
-}
-
-fn system32_dir() -> Option<PathBuf> {
-    let mut buf = vec![0_u16; 32768];
-    let len = unsafe { GetSystemDirectoryW(buf.as_mut_ptr(), buf.len() as u32) };
-    if len == 0 || len as usize > buf.len() {
-        return None;
-    }
-    Some(PathBuf::from(String::from_utf16_lossy(
-        &buf[..len as usize],
-    )))
 }
 
 fn state_path_for_vault(vault_path: &Path) -> PathBuf {

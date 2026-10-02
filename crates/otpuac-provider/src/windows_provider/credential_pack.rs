@@ -15,7 +15,8 @@ use windows_sys::Win32::UI::Shell::CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION 
 
 use super::hresult::{hresult_from_last_error, hresult_from_win32};
 use super::ids::CLSID_OTPUAC;
-use otpuac_windows::wide::{secure_zero_u16, wide_null};
+use otpuac_windows::wide::wide_null;
+use zeroize::Zeroize;
 
 pub(super) unsafe fn pack_credential(
     qualified_username: &str,
@@ -36,13 +37,13 @@ pub(super) unsafe fn pack_credential(
         &mut buffer_size,
     );
     if first != 0 || GetLastError() != ERROR_INSUFFICIENT_BUFFER {
-        secure_zero_u16(&mut password_w);
+        password_w.zeroize();
         return hresult_from_last_error();
     }
 
     let buffer = CoTaskMemAlloc(buffer_size as usize) as *mut u8;
     if buffer.is_null() {
-        secure_zero_u16(&mut password_w);
+        password_w.zeroize();
         return E_OUTOFMEMORY;
     }
 
@@ -53,7 +54,7 @@ pub(super) unsafe fn pack_credential(
         buffer,
         &mut buffer_size,
     );
-    secure_zero_u16(&mut password_w);
+    password_w.zeroize();
     if ok == 0 {
         CoTaskMemFree(buffer.cast());
         return hresult_from_last_error();

@@ -5,7 +5,6 @@ use std::ptr;
 use windows_sys::core::HRESULT;
 use windows_sys::Win32::Foundation::{E_OUTOFMEMORY, S_OK};
 use windows_sys::Win32::System::Com::CoTaskMemAlloc;
-use zeroize::Zeroize;
 
 /// # Safety
 ///
@@ -22,10 +21,6 @@ pub unsafe fn duplicate_wide_to_com(value: &[u16], out: *mut *mut u16) -> HRESUL
         *out = allocated;
     }
     S_OK
-}
-
-pub fn secure_zero_u16(value: &mut [u16]) {
-    value.zeroize();
 }
 
 pub fn wide_null(value: &str) -> Vec<u16> {
@@ -46,10 +41,6 @@ pub unsafe fn wide_ptr_to_vec(value: *const u16, max_chars: usize) -> Vec<u16> {
         len += 1;
     }
     unsafe { std::slice::from_raw_parts(value, len).to_vec() }
-}
-
-pub fn wide_vec_to_string(value: &[u16]) -> String {
-    String::from_utf16_lossy(value)
 }
 
 /// # Safety
