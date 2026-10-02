@@ -16,8 +16,10 @@ responsibility.
   TOTP verification.
 - `otpuac-service`: Windows service that validates unlock requests and releases
   the managed credential after TOTP succeeds.
-- `otpuac-setup`: installer helper for account creation, vault provisioning,
-  service registration, Credential Provider registration, and uninstall cleanup.
+- `otpuac-setup`: MSI custom-action helper for managed account creation, vault
+  provisioning, and uninstall cleanup. The MSI itself (`installer/`) installs
+  the files, the service, the Event Log source, and the Credential Provider
+  registration declaratively.
 - `otpuac-provider`: native Rust Windows Credential Provider DLL for the UAC
   prompt.
 - `otpuac-windows`: OTPUAC Windows helper crate for DPAPI, named pipes, COM

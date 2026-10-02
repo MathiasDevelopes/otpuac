@@ -96,7 +96,8 @@ OTPUAC deployment.
 
 ## Uninstall
 
-Use Windows Apps & Features / Add or Remove Programs and uninstall OTPUAC.
+Use Windows Apps & Features / Add or Remove Programs and uninstall OTPUAC, or
+run `msiexec /x OTPUAC-<version>-x64.msi /qn`.
 
 The uninstaller removes the service, unregisters the Credential Provider,
 removes OTPUAC data, and deletes the managed local administrator account when

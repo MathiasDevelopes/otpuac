@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Installer UI: the WixUI_Minimal flow plus a page for the managed account
+  name and authenticator issuer, and a Finish step that opens the
+  authenticator enrollment details once and then deletes them.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <!-- Only a fresh interactive install shows enrollment. Upgrades and
+         repairs keep the existing vault, and silent installs pass
+         OTPUACENROLLMENTFILE explicitly when they want the file. -->
+    <SetProperty
+      Id="OTPUACENROLLMENTFILE"
+      Value="[TempFolder]otpuac-enrollment.txt"
+      Before="ExecuteAction"
+      Sequence="ui"
+      Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND NOT OTPUACENROLLMENTFILE" />
+    <SetProperty
+      Id="WIXUI_EXITDIALOGOPTIONALTEXT"
+      Value="Click Finish to open the authenticator enrollment details. Add the secret to your authenticator app, then close Notepad; setup deletes the file afterwards."
+      Before="ExecuteAction"
+      Sequence="ui"
+      Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+    <SetProperty
+      Id="WixQuietExecCmdLine"
+      Value="&quot;[System64Folder]cmd.exe&quot; /d /c del /f /q &quot;[TempFolder]otpuac-enrollment.txt&quot;"
+      Before="ExecuteAction"
+      Sequence="ui"
+      Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+
+    <!-- Runs as the signed-in user from the Finish button and waits for
+         Notepad to close. -->
+    <CustomAction
+      Id="OtpuacShowEnrollment"
+      Directory="INSTALLFOLDER"
+      ExeCommand="&quot;[System64Folder]notepad.exe&quot; &quot;[OTPUACENROLLMENTFILE]&quot;"
+      Execute="immediate"
+      Impersonate="yes"
+      Return="ignore" />
+    <CustomAction
+      Id="OtpuacDeleteEnrollment"
+      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORTNAME)"
+      DllEntry="WixQuietExec"
+      Execute="immediate"
+      Return="ignore" />
+
+    <UI Id="OtpuacUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="WelcomeDlg" />
+
+      <Dialog Id="OtpuacAccountDlg" Width="370" Height="270" Title="!(loc.WelcomeDlg_Title)">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Managed administrator account" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose the local administrator account OTPUAC will manage." />
+        <Control Id="Explanation" Type="Text" X="20" Y="54" Width="330" Height="40" NoPrefix="yes" Text="Setup creates this local account, generates a strong random password, adds it to the local Administrators group, and stores the password only in the DPAPI-protected OTPUAC vault." />
+        <Control Id="AccountLabel" Type="Text" X="20" Y="102" Width="330" Height="12" Text="&amp;Local account name:" />
+        <Control Id="AccountEdit" Type="Edit" X="20" Y="116" Width="200" Height="18" Property="OTPUACACCOUNTNAME" Text="{20}" />
+        <Control Id="IssuerLabel" Type="Text" X="20" Y="146" Width="330" Height="12" Text="&amp;Authenticator issuer label:" />
+        <Control Id="IssuerEdit" Type="Edit" X="20" Y="160" Width="200" Height="18" Property="OTPUACISSUER" Text="{64}" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="WelcomeDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="SpawnDialog" Value="OtpuacAccountRequiredDlg" Condition="NOT OTPUACACCOUNTNAME OR NOT OTPUACISSUER" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="OTPUACACCOUNTNAME AND OTPUACISSUER" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <Dialog Id="OtpuacAccountRequiredDlg" Width="260" Height="85" Title="!(loc.WelcomeDlg_Title)" NoMinimize="yes">
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="30" NoPrefix="yes" Text="Enter both a local account name and an authenticator issuer label." />
+        <Control Id="OK" Type="PushButton" X="102" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+      </Dialog>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="OtpuacAccountDlg" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed OR WIX_UPGRADE_DETECTED" />
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="OtpuacAccountDlg" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Condition="NOT Installed AND WIX_UPGRADE_DETECTED" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Condition="Installed" />
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="OtpuacShowEnrollment" Order="1" Condition="OTPUACENROLLMENTFILE AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="OtpuacDeleteEnrollment" Order="2" Condition="OTPUACENROLLMENTFILE AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+    </UI>
+
+    <UIRef Id="WixUI_Common" />
+  </Fragment>
+</Wix>
