@@ -17,6 +17,8 @@ pub(super) const FIELD_TOTP: u32 = 2;
 pub(super) const FIELD_SUBMIT: u32 = 3;
 pub(super) const FIELD_COUNT: u32 = 4;
 
+const LABEL_TEXT: &str = "OTPUAC";
+const SUBMIT_TEXT: &str = "Submit";
 const TITLE_PROMPT: &str = "Enter authenticator code for admin elevation";
 
 pub(super) unsafe fn field_descriptor(
@@ -61,7 +63,7 @@ fn field_metadata(index: u32) -> Option<FieldMetadata> {
     match index {
         FIELD_LABEL => Some(FieldMetadata {
             field_type: CPFT_SMALL_TEXT,
-            label: "OTPUAC",
+            label: LABEL_TEXT,
         }),
         FIELD_TITLE => Some(FieldMetadata {
             field_type: CPFT_LARGE_TEXT,
@@ -73,7 +75,7 @@ fn field_metadata(index: u32) -> Option<FieldMetadata> {
         }),
         FIELD_SUBMIT => Some(FieldMetadata {
             field_type: CPFT_SUBMIT_BUTTON,
-            label: "Submit",
+            label: SUBMIT_TEXT,
         }),
         _ => None,
     }
@@ -100,7 +102,7 @@ pub(super) fn credential_field_text(
     totp_code: &[u16],
 ) -> Option<Vec<u16>> {
     match field_id {
-        FIELD_LABEL => Some(wide_null("OTPUAC")),
+        FIELD_LABEL => Some(wide_null(LABEL_TEXT)),
         FIELD_TITLE if status.is_empty() => Some(wide_null(TITLE_PROMPT)),
         FIELD_TITLE => Some(status.to_vec()),
         FIELD_TOTP => {
@@ -108,7 +110,7 @@ pub(super) fn credential_field_text(
             cloned.push(0);
             Some(cloned)
         }
-        FIELD_SUBMIT => Some(wide_null("Submit")),
+        FIELD_SUBMIT => Some(wide_null(SUBMIT_TEXT)),
         _ => None,
     }
 }
