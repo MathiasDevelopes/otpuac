@@ -4,11 +4,9 @@ mod credential_pack;
 mod fields;
 mod hresult;
 mod ids;
-mod ipc;
 mod provider;
-mod registry;
+mod wide;
 
-use registry::{register_server, unregister_server};
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicIsize, Ordering};
@@ -58,22 +56,6 @@ pub unsafe extern "system" fn DllCanUnloadNow() -> HRESULT {
         S_OK
     } else {
         S_FALSE
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn DllRegisterServer() -> HRESULT {
-    match register_server() {
-        Ok(()) => S_OK,
-        Err(hr) => hr,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn DllUnregisterServer() -> HRESULT {
-    match unregister_server() {
-        Ok(()) => S_OK,
-        Err(hr) => hr,
     }
 }
 

@@ -1,181 +1,66 @@
-use crate::error::{OtpuacError, Result};
+//! RFC 6238 TOTP with the settings every authenticator app assumes:
+//! HMAC-SHA1, six digits, 30-second steps, one step of clock skew.
+
 use data_encoding::BASE32_NOPAD;
 use hmac::{Hmac, KeyInit, Mac};
 use rand::{rngs::SysRng, TryRng};
-use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
-type HmacSha1 = Hmac<Sha1>;
+pub const DIGITS: usize = 6;
+pub const STEP_SECONDS: u64 = 30;
+const SKEW_STEPS: u64 = 1;
+const SECRET_BYTES: usize = 20;
+const ISSUER: &str = "OTPUAC";
 
-const DEFAULT_DIGITS: u32 = 6;
-const MIN_DIGITS: u32 = 6;
-const MAX_DIGITS: u32 = 8;
-const DEFAULT_STEP_SECONDS: u64 = 30;
-const DEFAULT_SKEW_STEPS: u8 = 1;
-const MAX_SKEW_STEPS: u8 = 2;
-const DEFAULT_ISSUER: &str = "OTPUAC";
-const TOTP_SECRET_BYTES: usize = 20;
-const SHA1_DIGEST_BYTES: usize = 20;
-const DYNAMIC_TRUNCATION_OFFSET_INDEX: usize = SHA1_DIGEST_BYTES - 1;
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct TotpPolicy {
-    pub digits: u32,
-    pub step_seconds: u64,
-    pub skew_steps: u8,
-    pub issuer: String,
-}
-
-impl Default for TotpPolicy {
-    fn default() -> Self {
-        Self {
-            digits: DEFAULT_DIGITS,
-            step_seconds: DEFAULT_STEP_SECONDS,
-            skew_steps: DEFAULT_SKEW_STEPS,
-            issuer: DEFAULT_ISSUER.to_string(),
-        }
-    }
-}
-
-impl TotpPolicy {
-    pub fn validate(&self) -> Result<()> {
-        if !(MIN_DIGITS..=MAX_DIGITS).contains(&self.digits) {
-            return Err(OtpuacError::InvalidTotpPolicy(
-                "digits must be between 6 and 8",
-            ));
-        }
-        if self.step_seconds == 0 {
-            return Err(OtpuacError::InvalidTotpPolicy(
-                "step_seconds must be greater than zero",
-            ));
-        }
-        if self.skew_steps > MAX_SKEW_STEPS {
-            return Err(OtpuacError::InvalidTotpPolicy(
-                "skew_steps must not exceed two",
-            ));
-        }
-        if self.issuer.trim().is_empty() {
-            return Err(OtpuacError::InvalidTotpPolicy("issuer is required"));
-        }
-        Ok(())
-    }
-}
-
-pub fn generate_totp_secret() -> Zeroizing<Vec<u8>> {
-    let mut secret = Zeroizing::new(vec![0_u8; TOTP_SECRET_BYTES]);
+pub fn generate_secret() -> Zeroizing<Vec<u8>> {
+    let mut secret = Zeroizing::new(vec![0_u8; SECRET_BYTES]);
     SysRng
         .try_fill_bytes(&mut secret)
         .expect("OS random source is available");
     secret
 }
 
-pub fn encode_totp_secret(secret: &[u8]) -> String {
+pub fn encode_secret(secret: &[u8]) -> String {
     BASE32_NOPAD.encode(secret)
 }
 
+/// Returns the time step `code` is valid for at `unix_time`, if any.
+pub fn matching_step(secret: &[u8], code: &str, unix_time: u64) -> Option<u64> {
+    let code = code.trim();
+    if code.len() != DIGITS || !code.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+
+    let current = unix_time / STEP_SECONDS;
+    (current.saturating_sub(SKEW_STEPS)..=current + SKEW_STEPS)
+        .find(|&step| bool::from(hotp(secret, step).as_bytes().ct_eq(code.as_bytes())))
+}
+
+pub fn otpauth_uri(account_label: &str, encoded_secret: &str) -> String {
+    let label = url_component(&format!("{ISSUER}:{account_label}"));
+    format!(
+        "otpauth://totp/{label}?secret={encoded_secret}&issuer={ISSUER}&algorithm=SHA1&digits={DIGITS}&period={STEP_SECONDS}"
+    )
+}
+
 #[cfg(test)]
-pub(crate) fn code_at(secret: &[u8], policy: &TotpPolicy, unix_time: u64) -> Result<String> {
-    policy.validate()?;
-    let counter = totp_step(unix_time, policy);
-    hotp(secret, counter, policy.digits)
+pub(crate) fn code_at(secret: &[u8], unix_time: u64) -> String {
+    hotp(secret, unix_time / STEP_SECONDS)
 }
 
-pub fn accepted_step_at(
-    secret: &[u8],
-    policy: &TotpPolicy,
-    code: &str,
-    unix_time: u64,
-) -> Result<Option<u64>> {
-    policy.validate()?;
-
-    let candidate = code.trim();
-    validate_candidate_code(candidate, policy.digits)?;
-
-    let current_step = totp_step(unix_time, policy);
-
-    for offset in accepted_step_offsets(policy.skew_steps) {
-        let Some(step) = add_signed(current_step, offset) else {
-            continue;
-        };
-        let expected = hotp(secret, step, policy.digits)?;
-        if bool::from(expected.as_bytes().ct_eq(candidate.as_bytes())) {
-            return Ok(Some(step));
-        }
-    }
-
-    Ok(None)
-}
-
-pub fn otpauth_uri(
-    account_label: &str,
-    encoded_secret: &str,
-    policy: &TotpPolicy,
-) -> Result<String> {
-    policy.validate()?;
-    let issuer = url_component(&policy.issuer);
-    let label = url_component(&format!("{}:{}", policy.issuer, account_label));
-    Ok(format!(
-        "otpauth://totp/{label}?secret={secret}&issuer={issuer}&algorithm=SHA1&digits={digits}&period={period}",
-        label = label,
-        secret = encoded_secret,
-        issuer = issuer,
-        digits = policy.digits,
-        period = policy.step_seconds
-    ))
-}
-
-fn validate_candidate_code(candidate: &str, digits: u32) -> Result<()> {
-    if candidate.len() == digits as usize && candidate.bytes().all(|byte| byte.is_ascii_digit()) {
-        Ok(())
-    } else {
-        Err(OtpuacError::InvalidTotpCode)
-    }
-}
-
-fn totp_step(unix_time: u64, policy: &TotpPolicy) -> u64 {
-    unix_time / policy.step_seconds
-}
-
-fn accepted_step_offsets(skew_steps: u8) -> std::ops::RangeInclusive<i64> {
-    let skew_steps = i64::from(skew_steps);
-    -skew_steps..=skew_steps
-}
-
-fn hotp(secret: &[u8], counter: u64, digits: u32) -> Result<String> {
-    let mut mac = HmacSha1::new_from_slice(secret)
-        .map_err(|err| OtpuacError::Crypto(format!("invalid HMAC key: {err}")))?;
+fn hotp(secret: &[u8], counter: u64) -> String {
+    let mut mac = Hmac::<Sha1>::new_from_slice(secret).expect("HMAC accepts any key length");
     mac.update(&counter.to_be_bytes());
     let digest = mac.finalize().into_bytes();
-    let binary = dynamic_truncate(&digest);
-    let modulus = 10_u32.pow(digits);
-    Ok(format!(
-        "{code:0width$}",
-        code = binary % modulus,
-        width = digits as usize
-    ))
-}
 
-fn dynamic_truncate(digest: &[u8]) -> u32 {
-    let offset = (digest[DYNAMIC_TRUNCATION_OFFSET_INDEX] & 0x0f) as usize;
-    (((digest[offset] & 0x7f) as u32) << 24)
-        | ((digest[offset + 1] as u32) << 16)
-        | ((digest[offset + 2] as u32) << 8)
-        | (digest[offset + 3] as u32)
-}
-
-fn add_signed(value: u64, offset: i64) -> Option<u64> {
-    if offset.is_negative() {
-        value.checked_sub(offset.unsigned_abs())
-    } else {
-        value.checked_add(offset as u64)
-    }
+    let offset = (digest[digest.len() - 1] & 0x0f) as usize;
+    let binary = u32::from_be_bytes(digest[offset..offset + 4].try_into().unwrap()) & 0x7fff_ffff;
+    format!("{:0DIGITS$}", binary % 10_u32.pow(DIGITS as u32))
 }
 
 fn url_component(value: &str) -> String {
-    // Keep this local to avoid making the core URI generation depend on a URL
-    // crate. Authenticator labels only need RFC3986-style percent escaping.
     let mut out = String::with_capacity(value.len());
     for byte in value.bytes() {
         match byte {
@@ -192,55 +77,48 @@ fn url_component(value: &str) -> String {
 mod tests {
     use super::*;
 
+    const RFC_SECRET: &[u8] = b"12345678901234567890";
+
     #[test]
     fn hotp_matches_rfc_4226_vectors() {
-        let secret = b"12345678901234567890";
         let expected = [
             "755224", "287082", "359152", "969429", "338314", "254676", "287922", "162583",
             "399871", "520489",
         ];
-
-        for (counter, expected_code) in expected.into_iter().enumerate() {
-            assert_eq!(hotp(secret, counter as u64, 6).unwrap(), expected_code);
+        for (counter, code) in expected.into_iter().enumerate() {
+            assert_eq!(hotp(RFC_SECRET, counter as u64), code);
         }
     }
 
     #[test]
-    fn totp_matches_rfc_6238_sha1_vector() {
-        let secret = b"12345678901234567890";
-        let policy = TotpPolicy {
-            digits: 8,
-            step_seconds: 30,
-            skew_steps: 1,
-            issuer: "OTPUAC".to_string(),
-        };
+    fn accepts_one_step_of_clock_skew() {
+        let code = code_at(RFC_SECRET, 60);
 
-        assert_eq!(code_at(secret, &policy, 59).unwrap(), "94287082");
+        assert_eq!(matching_step(RFC_SECRET, &code, 61), Some(2));
+        assert_eq!(matching_step(RFC_SECRET, &code, 89), Some(2));
+        assert_eq!(matching_step(RFC_SECRET, &code, 30), Some(2));
+        assert_eq!(matching_step(RFC_SECRET, &code, 121), None);
     }
 
     #[test]
-    fn verify_allows_configured_clock_skew() {
-        let secret = b"12345678901234567890";
-        let policy = TotpPolicy::default();
-        let code = code_at(secret, &policy, 60).unwrap();
+    fn rejects_malformed_codes() {
+        assert_eq!(matching_step(RFC_SECRET, "12345", 0), None);
+        assert_eq!(matching_step(RFC_SECRET, "12345a", 0), None);
+        assert_eq!(matching_step(RFC_SECRET, "", 0), None);
+    }
 
-        assert_eq!(
-            accepted_step_at(secret, &policy, &code, 61).unwrap(),
-            Some(2)
-        );
-        assert_eq!(
-            accepted_step_at(secret, &policy, &code, 89).unwrap(),
-            Some(2)
-        );
-        assert_eq!(accepted_step_at(secret, &policy, &code, 121).unwrap(), None);
+    #[test]
+    fn uri_escapes_the_label() {
+        let uri = otpauth_uri(r"PC\admin", "ABC");
+        assert!(uri.starts_with("otpauth://totp/OTPUAC%3APC%5Cadmin?secret=ABC&"));
     }
 
     #[test]
     fn base32_secret_round_trips() {
-        let secret = generate_totp_secret();
-        let encoded = encode_totp_secret(&secret);
-        let decoded = BASE32_NOPAD.decode(encoded.as_bytes()).unwrap();
-
+        let secret = generate_secret();
+        let decoded = BASE32_NOPAD
+            .decode(encode_secret(&secret).as_bytes())
+            .unwrap();
         assert_eq!(&*decoded, &*secret);
     }
 }

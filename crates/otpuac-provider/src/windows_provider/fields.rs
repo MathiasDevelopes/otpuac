@@ -1,4 +1,5 @@
-use otpuac_windows::wide::{duplicate_wide_to_com, wide_null};
+use super::wide::duplicate_wide_to_com;
+use otpuac_core::win::wide_null;
 use std::mem::{size_of, zeroed};
 use std::ptr;
 use windows_sys::Win32::Foundation::{E_OUTOFMEMORY, S_OK};

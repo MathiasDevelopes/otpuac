@@ -1,87 +1,45 @@
 # Architecture
 
-## Overview
+## The Idea
 
-OTPUAC is split into separate components so the Windows Credential Provider,
-Windows service, installer helper, and shared security logic each have a clear
-responsibility.
+UAC elevation only accepts a real Windows credential, and a TOTP code is not
+one. OTPUAC therefore makes a valid TOTP code release the password of a
+dedicated local administrator account that only OTPUAC knows. Windows still
+authenticates that account and makes the elevation decision.
 
 ## Components
 
-- `otpuac-core`: TOTP verification, vault format, secret protection
-  abstraction, and provider/service IPC contracts.
-- `otpuac-runtime`: OTPUAC product paths, installed artifact names, and default
-  runtime selections such as the platform secret protector.
-- `otpuac-admin`: administrator CLI for provisioning, enrollment display, and
-  TOTP verification.
-- `otpuac-service`: Windows service that validates unlock requests and releases
-  the managed credential after TOTP succeeds.
-- `otpuac-setup`: MSI custom-action helper for managed account creation, vault
-  provisioning, and uninstall cleanup. The MSI itself (`installer/`) installs
-  the files, the service, the Event Log source, and the Credential Provider
-  registration declaratively.
-- `otpuac-provider`: native Rust Windows Credential Provider DLL for the UAC
-  prompt.
-- `otpuac-windows`: OTPUAC Windows helper crate for DPAPI, named pipes, COM
-  allocations, handles, and UTF-16 conversion.
+- `otpuac-core`: the unlock decision (`unlock()`), TOTP, the vault, and the
+  replay/lockout guard. Plain Rust, tested on any platform; its `win` module
+  holds the few shared Win32 helpers (DPAPI, SDDL, UTF-16).
+- `otpuac-provider`: the Credential Provider COM DLL that shows the OTPUAC
+  tile in the UAC prompt and calls `unlock()`.
+- `otpuac-setup`: one CLI for install, enrollment, code checks, and uninstall.
+  The MSI (`installer/`) runs it as custom actions; administrators can run it
+  by hand.
 
 ## UAC Flow
 
-1. Windows shows a UAC Credential UI prompt.
+1. Windows shows the UAC credential prompt in `consent.exe`, which runs as
+   SYSTEM on the secure desktop and loads the OTPUAC provider.
 2. The user selects the OTPUAC tile and enters a TOTP code.
-3. The Credential Provider sends a framed unlock request to the OTPUAC service.
-4. The service confirms the request is for the UAC Credential UI scenario.
-5. The service validates the TOTP code, checks replay state, and releases the
-   managed credential only on success.
-6. The provider packs the credential for Windows and clears plaintext buffers.
+3. The provider calls `unlock()`, which:
+   - refuses while locked out;
+   - reads and decrypts the vault;
+   - checks the code (SHA-1, 6 digits, 30-second steps, one step of skew);
+   - refuses a step at or before the last accepted one;
+   - records the outcome in the guard file before returning.
+4. On success the provider packs the managed credential for Windows and clears
+   the plaintext.
 
-The provider does not read or decrypt the vault. Vault access stays in the
-service process.
+## Data
 
-## Vault
+`C:\ProgramData\OTPUAC`, restricted to SYSTEM and Administrators, holds:
 
-The Windows vault is stored at:
+- `vault.json`: the managed account name, its DPAPI-protected password, the
+  DPAPI-protected TOTP secret, and whether setup created the account.
+- `guard.json`: the last accepted TOTP step and the times of recent failures.
 
-```text
-C:\ProgramData\OTPUAC\vault.json
-```
-
-It contains:
-
-- the managed account name and optional domain;
-- the protected managed account password;
-- the protected TOTP secret;
-- the TOTP policy;
-- vault metadata.
-
-Secrets are protected with machine-scoped DPAPI on Windows. The vault directory
-should remain restricted to `SYSTEM` and local Administrators.
-
-## IPC
-
-The provider and service communicate over:
-
-```text
-\\.\pipe\OTPUAC
-```
-
-Messages are length-prefixed JSON frames with a maximum size. Provider IPC has
-bounded connect and I/O waits so a stalled service returns an error instead of
-leaving the UAC prompt waiting indefinitely.
-
-The installed service accepts requests only from known Windows credential UI
-host processes.
-
-## Audit and State
-
-Audit events are written to the Windows Application log under the `OTPUAC`
-source.
-
-Replay state is stored at:
-
-```text
-C:\ProgramData\OTPUAC\service-state.json
-```
-
-This state records the last accepted TOTP step so reused or older codes can be
-rejected.
+The directory's ACL is the access control: a process that is not SYSTEM or an
+administrator cannot open the vault, so the provider fails closed anywhere
+other than an elevated prompt host.

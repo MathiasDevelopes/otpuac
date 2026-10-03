@@ -1,12 +1,8 @@
 [workspace]
 members = [
-    "crates/otpuac-admin",
     "crates/otpuac-core",
     "crates/otpuac-provider",
-    "crates/otpuac-runtime",
-    "crates/otpuac-service",
     "crates/otpuac-setup",
-    "crates/otpuac-windows",
 ]
 resolver = "2"
 
@@ -18,21 +14,15 @@ license-file = "LICENSE"
 
 [workspace.dependencies]
 otpuac-core = { path = "crates/otpuac-core" }
-otpuac-runtime = { path = "crates/otpuac-runtime" }
-otpuac-windows = { path = "crates/otpuac-windows" }
 
 clap = { version = "4.6", features = ["derive"] }
 data-encoding = "2.11"
 hmac = "0.13"
 rand = { version = "0.10", default-features = false, features = ["std", "sys_rng"] }
-rpassword = "7.5"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 sha1 = { version = "0.11", default-features = false }
 subtle = "2.6"
 thiserror = "2.0.18"
-tracing = { version = "0.1.44", default-features = false, features = ["std"] }
-tracing-subscriber = { version = "0.3.23", default-features = false, features = ["ansi", "env-filter", "fmt", "std"] }
-windows-service = "0.8.1"
 windows-sys = "0.61"
 zeroize = "1.9"

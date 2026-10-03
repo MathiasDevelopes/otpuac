@@ -4,32 +4,23 @@ pub type Result<T> = std::result::Result<T, OtpuacError>;
 
 #[derive(Debug, Error)]
 pub enum OtpuacError {
-    #[error("invalid TOTP policy: {0}")]
-    InvalidTotpPolicy(&'static str),
+    #[error("The authenticator code was rejected")]
+    CodeRejected,
 
-    #[error("TOTP code must contain only ASCII digits")]
-    InvalidTotpCode,
+    #[error("This authenticator code was already used")]
+    CodeReused,
 
-    #[error("TOTP code was rejected")]
-    TotpRejected,
+    #[error("Too many failed attempts; try again in a few minutes")]
+    LockedOut,
 
     #[error("secret protection failed: {0}")]
     Crypto(String),
-
-    #[error("protected blob scheme mismatch: expected {expected}, got {actual}")]
-    SchemeMismatch { expected: String, actual: String },
 
     #[error("invalid vault: {0}")]
     InvalidVault(String),
 
     #[error("invalid configuration: {0}")]
     InvalidConfig(String),
-
-    #[error("invalid runtime state: {0}")]
-    InvalidState(String),
-
-    #[error("invalid IPC message: {0}")]
-    InvalidIpc(String),
 
     #[error("platform operation failed: {0}")]
     Platform(String),
@@ -42,7 +33,14 @@ pub enum OtpuacError {
 
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+}
 
-    #[error("unsupported platform feature: {0}")]
-    UnsupportedPlatform(&'static str),
+impl OtpuacError {
+    /// True when the code itself was refused, as opposed to OTPUAC failing.
+    pub fn is_denial(&self) -> bool {
+        matches!(
+            self,
+            Self::CodeRejected | Self::CodeReused | Self::LockedOut
+        )
+    }
 }

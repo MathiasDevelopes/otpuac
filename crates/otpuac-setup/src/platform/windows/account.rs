@@ -1,33 +1,28 @@
-use super::error::{last_error, win_error};
 use super::registry::{create_registry_key, set_registry_dword};
+use super::{last_error, win_error};
+use otpuac_core::win::wide_null;
 use otpuac_core::Result;
-use otpuac_windows::system::LocalAllocPtr;
-use otpuac_windows::wide::{string_from_wide_ptr, wide_null};
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     GetLastError, ERROR_FILE_NOT_FOUND, ERROR_INSUFFICIENT_BUFFER, ERROR_MEMBER_IN_ALIAS,
 };
 use windows_sys::Win32::NetworkManagement::NetManagement::{
     NERR_Success, NERR_UserExists, NERR_UserNotFound, NetLocalGroupAddMembers, NetUserAdd,
-    NetUserDel, LOCALGROUP_MEMBERS_INFO_0, UF_DONT_EXPIRE_PASSWD, UF_SCRIPT, USER_INFO_1,
+    NetUserDel, LOCALGROUP_MEMBERS_INFO_3, UF_DONT_EXPIRE_PASSWD, UF_SCRIPT, USER_INFO_1,
     USER_PRIV_USER,
 };
-use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::{
-    CreateWellKnownSid, LookupAccountNameW, LookupAccountSidW, WinBuiltinAdministratorsSid, PSID,
-    SECURITY_MAX_SID_SIZE, SID_NAME_USE,
+    CreateWellKnownSid, LookupAccountSidW, WinBuiltinAdministratorsSid, SECURITY_MAX_SID_SIZE,
+    SID_NAME_USE,
 };
 use windows_sys::Win32::System::Registry::{RegDeleteValueW, HKEY_LOCAL_MACHINE};
 use zeroize::Zeroize;
 
 const MANAGED_ACCOUNT_COMMENT: &str = "OTPUAC managed local administrator account";
 
-pub(crate) fn create_local_admin_account(username: &str, password: &str) -> Result<String> {
+pub(crate) fn create_local_admin_account(username: &str, password: &str) -> Result<()> {
     create_local_user(username, password)?;
-    let mut sid = lookup_account_sid(username)?;
-    let sid_string = sid_to_string(sid.as_mut_ptr().cast())?;
-    add_sid_to_local_administrators(sid.as_mut_ptr().cast())?;
-    Ok(sid_string)
+    add_to_local_administrators(username)
 }
 
 pub(crate) fn delete_local_account(username: &str) -> Result<()> {
@@ -83,16 +78,19 @@ fn create_local_user(username: &str, password: &str) -> Result<()> {
     Ok(())
 }
 
-fn add_sid_to_local_administrators(sid: PSID) -> Result<()> {
-    let admins = builtin_administrators_name()?;
-    let admins_w = wide_null(&admins);
-    let member = LOCALGROUP_MEMBERS_INFO_0 { lgrmi0_sid: sid };
+fn add_to_local_administrators(username: &str) -> Result<()> {
+    // The group name is localized, so resolve it from its well-known SID.
+    let admins_w = wide_null(builtin_administrators_name()?);
+    let mut username_w = wide_null(username);
+    let member = LOCALGROUP_MEMBERS_INFO_3 {
+        lgrmi3_domainandname: username_w.as_mut_ptr(),
+    };
     let status = unsafe {
         NetLocalGroupAddMembers(
             ptr::null(),
             admins_w.as_ptr(),
-            0,
-            (&member as *const LOCALGROUP_MEMBERS_INFO_0).cast(),
+            3,
+            (&member as *const LOCALGROUP_MEMBERS_INFO_3).cast(),
             1,
         )
     };
@@ -123,46 +121,6 @@ fn set_sign_in_hidden_state(username: &str, hidden: bool) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn lookup_account_sid(account: &str) -> Result<Vec<u8>> {
-    let account_w = wide_null(account);
-    let mut sid_len = 0_u32;
-    let mut domain_len = 0_u32;
-    let mut sid_type: SID_NAME_USE = 0;
-    unsafe {
-        LookupAccountNameW(
-            ptr::null(),
-            account_w.as_ptr(),
-            ptr::null_mut(),
-            &mut sid_len,
-            ptr::null_mut(),
-            &mut domain_len,
-            &mut sid_type,
-        );
-    }
-    let err = unsafe { GetLastError() };
-    if err != ERROR_INSUFFICIENT_BUFFER || sid_len == 0 {
-        return Err(last_error("LookupAccountNameW"));
-    }
-
-    let mut sid = vec![0_u8; sid_len as usize];
-    let mut domain = vec![0_u16; domain_len as usize];
-    let ok = unsafe {
-        LookupAccountNameW(
-            ptr::null(),
-            account_w.as_ptr(),
-            sid.as_mut_ptr().cast(),
-            &mut sid_len,
-            domain.as_mut_ptr(),
-            &mut domain_len,
-            &mut sid_type,
-        )
-    };
-    if ok == 0 {
-        return Err(last_error("LookupAccountNameW"));
-    }
-    Ok(sid)
 }
 
 fn builtin_administrators_name() -> Result<String> {
@@ -220,14 +178,4 @@ fn builtin_administrators_name() -> Result<String> {
         actual_len -= 1;
     }
     Ok(String::from_utf16_lossy(&name[..actual_len]))
-}
-
-fn sid_to_string(sid: PSID) -> Result<String> {
-    let mut sid_string: *mut u16 = ptr::null_mut();
-    let ok = unsafe { ConvertSidToStringSidW(sid, &mut sid_string) };
-    if ok == 0 {
-        return Err(last_error("ConvertSidToStringSidW"));
-    }
-    let _sid_string = unsafe { LocalAllocPtr::from_raw(sid_string.cast()) };
-    Ok(unsafe { string_from_wide_ptr(sid_string) })
 }
