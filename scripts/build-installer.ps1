@@ -2,7 +2,7 @@ param(
     [string]$Target = "x86_64-pc-windows-msvc",
     [string]$Configuration = "release",
     [string]$AppVersion = "0.1.0",
-    [string]$InnoSetupCompiler,
+    [string]$WixVersion = "5.0.2",
     [switch]$Locked
 )
 
@@ -13,32 +13,38 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
     throw "The release installer must be built on Windows."
 }
 
-function Resolve-InnoSetupCompiler {
-    param([string]$ConfiguredPath)
+function Assert-LastExitCode {
+    param([string]$Step)
 
-    if ($ConfiguredPath) {
-        if (-not (Test-Path $ConfiguredPath)) {
-            throw "Inno Setup compiler not found: $ConfiguredPath"
-        }
-        return (Resolve-Path $ConfiguredPath).Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Step failed with exit code $LASTEXITCODE"
     }
+}
 
-    $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+function Resolve-Wix {
+    $command = Get-Command "wix.exe" -ErrorAction SilentlyContinue
     if ($command) {
         return $command.Source
     }
 
-    $candidates = @(
-        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-        "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
-    )
-    foreach ($candidate in $candidates) {
-        if (Test-Path $candidate) {
-            return $candidate
-        }
-    }
+    throw "Install the WiX Toolset with 'dotnet tool install --global wix --version $WixVersion'."
+}
 
-    throw "Install Inno Setup 6 or pass -InnoSetupCompiler <path-to-ISCC.exe>."
+function Install-WixExtensions {
+    param([string]$Wix)
+
+    # Adding an extension that is already in the global cache is a no-op.
+    foreach ($extension in @("WixToolset.UI.wixext", "WixToolset.Util.wixext")) {
+        & $Wix extension add -g "$extension/$WixVersion"
+        Assert-LastExitCode "wix extension add $extension"
+    }
+}
+
+# Windows Installer versions are numeric major.minor.patch, so SemVer
+# pre-release and build suffixes only appear in the file name.
+$msiVersion = ($AppVersion -split '[-+]', 2)[0]
+if ($msiVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "AppVersion '$AppVersion' does not start with a major.minor.patch version."
 }
 
 $cargoArgs = @("build", "--release", "--target", $Target)
@@ -47,6 +53,7 @@ if ($Locked) {
 }
 
 cargo @cargoArgs
+Assert-LastExitCode "cargo build"
 
 $artifactsDir = Join-Path "target\$Target" $Configuration
 $requiredArtifacts = @(
@@ -65,13 +72,21 @@ foreach ($artifact in $requiredArtifacts) {
 
 New-Item -ItemType Directory -Force -Path "dist" | Out-Null
 
-$iscc = Resolve-InnoSetupCompiler -ConfiguredPath $InnoSetupCompiler
+$wix = Resolve-Wix
+Install-WixExtensions -Wix $wix
+
 $resolvedArtifacts = (Resolve-Path $artifactsDir).Path
-$script = (Resolve-Path "installer\otpuac.iss").Path
+$output = "dist\OTPUAC-$AppVersion-x64.msi"
 
-& $iscc "/DAppVersion=$AppVersion" "/DArtifactsDir=$resolvedArtifacts" $script
-if ($LASTEXITCODE -ne 0) {
-    throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
-}
+& $wix build `
+    -arch x64 `
+    -ext WixToolset.UI.wixext `
+    -ext WixToolset.Util.wixext `
+    -d "Version=$msiVersion" `
+    -d "ArtifactsDir=$resolvedArtifacts" `
+    -out $output `
+    installer\otpuac.wxs `
+    installer\OtpuacUI.wxs
+Assert-LastExitCode "wix build"
 
-Write-Host "Built dist\OTPUAC-Setup-$AppVersion-x64.exe"
+Write-Host "Built $output"

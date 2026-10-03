@@ -8,19 +8,22 @@ Workspace crates live under `crates/`:
 - `otpuac-core`: shared TOTP, vault, IPC contracts, and protection abstractions.
 - `otpuac-admin`: CLI for provisioning, enrollment, and TOTP verification.
 - `otpuac-service`: Windows service, named-pipe unlock handler, and audit logging.
-- `otpuac-setup`: installer helper for account, vault, service, provider, and uninstall work.
+- `otpuac-setup`: MSI custom-action helper for the managed account, vault, and uninstall cleanup.
 - `otpuac-provider`: Rust Credential Provider COM DLL.
 - `otpuac-runtime`: OTPUAC runtime paths and default platform selections.
 - `otpuac-windows`: shared OTPUAC Windows helpers for pipes, DPAPI, COM, and UTF-16.
 
-Production-facing documentation is in `docs/`, installer packaging is in
+Production-facing documentation is in `docs/`, the WiX MSI source is in
 `installer/`, and helper scripts are in `scripts/`.
 
 ## Build Commands
 
 - `cargo build --workspace`: build all workspace crates for the host target.
 - `.\scripts\build-windows.ps1`: build Windows release artifacts.
-- On Windows, `.\scripts\build-installer.ps1` builds the release installer.
+- On Windows, `.\scripts\build-installer.ps1` builds the release MSI (needs the
+  WiX Toolset: `dotnet tool install --global wix --version 5.0.2`).
+- `.\scripts\test-installer.ps1 -Msi <path>` installs and uninstalls the MSI and
+  checks the result. It creates a real admin account, so use a disposable VM.
 
 ## Coding Style & Naming Conventions
 

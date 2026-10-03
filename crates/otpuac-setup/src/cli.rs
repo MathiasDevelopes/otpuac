@@ -36,9 +36,6 @@ pub(crate) enum Command {
     },
     Uninstall {
         #[arg(long)]
-        install_dir: Option<PathBuf>,
-
-        #[arg(long)]
         program_data: Option<PathBuf>,
 
         #[arg(long)]

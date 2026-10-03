@@ -7,23 +7,47 @@ Confirm that you have:
 - a Windows 10/11 x64 machine;
 - an existing administrator account;
 - a mobile authenticator app that supports TOTP;
-- the signed OTPUAC installer from your approved release channel.
+- the signed OTPUAC MSI (`OTPUAC-<version>-x64.msi`) from your approved release
+  channel.
 
 Do not disable built-in Microsoft credential providers. They provide the
 recovery path if OTPUAC cannot unlock the managed credential.
 
 ## Install OTPUAC
 
-1. Run the OTPUAC installer.
-2. Approve the Windows elevation prompt with an existing administrator account.
-3. Choose the managed local administrator account name.
-4. Choose the authenticator issuer label.
-5. Complete setup.
+1. Run the OTPUAC MSI.
+2. Choose the managed local administrator account name.
+3. Choose the authenticator issuer label.
+4. Click Install and approve the Windows elevation prompt with an existing
+   administrator account.
+5. Click Finish to open the authenticator enrollment details in Notepad.
 
 The installer creates the managed local administrator account, generates its
 password, stores the password in the DPAPI-protected OTPUAC vault, registers the
-Windows service, registers the Credential Provider, and opens the authenticator
-enrollment details.
+Windows service, registers the Credential Provider, and writes the
+authenticator enrollment details to a file in your temp folder. Setup deletes
+that file after you close Notepad.
+
+If an earlier OTPUAC setup `.exe` is installed, the MSI asks you to uninstall it
+first. That uninstall removes the old managed account and vault, so enroll the
+authenticator again after installing the MSI.
+
+### Unattended Install
+
+The MSI accepts these public properties:
+
+- `OTPUACACCOUNTNAME`: managed account name, default `OTPUACAdmin`.
+- `OTPUACISSUER`: authenticator issuer label, default `OTPUAC`.
+- `OTPUACENROLLMENTFILE`: optional path for the enrollment details file. Silent
+  installs write no enrollment file unless this is set.
+
+```powershell
+msiexec /i OTPUAC-1.0.1-x64.msi /qn OTPUACACCOUNTNAME=OTPUACAdmin OTPUACENROLLMENTFILE="C:\Secure\otpuac-enrollment.txt"
+```
+
+Without an enrollment file, show the enrollment details later from an elevated
+prompt with `otpuac-admin show-enrollment`. Delete any enrollment file once the
+authenticator is enrolled; it contains the TOTP secret.
 
 ## Enroll the Authenticator
 
@@ -58,8 +82,10 @@ local Administrators.
 
 ## Uninstall
 
-Use Windows Apps & Features / Add or Remove Programs and uninstall OTPUAC.
+Use Windows Apps & Features / Add or Remove Programs and uninstall OTPUAC, or
+run `msiexec /x OTPUAC-<version>-x64.msi /qn`.
 
 The uninstaller removes the OTPUAC service, unregisters the Credential Provider,
 deletes OTPUAC data, and deletes the managed local administrator account when
-OTPUAC metadata says setup created it.
+OTPUAC metadata says setup created it. Upgrading to a newer MSI keeps the
+managed account and vault.

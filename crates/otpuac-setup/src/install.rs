@@ -9,7 +9,7 @@ use otpuac_core::{
 };
 use otpuac_runtime::{
     default_protector,
-    paths::{setup_metadata_path, vault_path, PROVIDER_DLL, SERVICE_EXE},
+    paths::{setup_metadata_path, vault_path},
 };
 use serde::Serialize;
 use std::fs;
@@ -48,13 +48,13 @@ pub(crate) fn install_managed(
             }
         };
 
-    if let Err(err) =
-        configure_install(&install_dir, enrollment_file, &metadata, &vault, &protector)
-    {
-        if is_new_install {
-            rollback_new_install(&account_name, &metadata_path, &vault_path);
+    if let Some(path) = enrollment_file {
+        if let Err(err) = write_enrollment_file(&path, &metadata, &vault, &protector) {
+            if is_new_install {
+                rollback_new_install(&account_name, &metadata_path, &vault_path);
+            }
+            return Err(err);
         }
-        return Err(err);
     }
 
     println!(
@@ -79,7 +79,6 @@ pub(crate) fn verify_code(code: String, program_data: PathBuf) -> Result<()> {
 }
 
 pub(crate) fn uninstall(
-    install_dir: PathBuf,
     program_data: PathBuf,
     remove_data: bool,
     remove_created_account: bool,
@@ -90,14 +89,6 @@ pub(crate) fn uninstall(
     } else {
         None
     };
-
-    platform::stop_and_delete_service()?;
-    platform::unregister_event_log_source()?;
-
-    let provider_dll = install_dir.join(PROVIDER_DLL);
-    if provider_dll.exists() {
-        platform::unregister_provider(&provider_dll)?;
-    }
 
     if let Some(metadata) = metadata
         .as_ref()
@@ -172,23 +163,6 @@ fn provision_new_install(
         rollback_new_install(account_name, metadata_path, vault_path);
     }
     provision_result
-}
-
-fn configure_install(
-    install_dir: &Path,
-    enrollment_file: Option<PathBuf>,
-    metadata: &SetupMetadata,
-    vault: &VaultFile,
-    protector: &impl SecretProtector,
-) -> Result<()> {
-    platform::register_provider(&install_dir.join(PROVIDER_DLL))?;
-    platform::register_event_log_source(&install_dir.join(SERVICE_EXE))?;
-    platform::install_or_replace_service(&install_dir.join(SERVICE_EXE))?;
-
-    if let Some(path) = enrollment_file {
-        write_enrollment_file(&path, metadata, vault, protector)?;
-    }
-    Ok(())
 }
 
 fn cleanup_managed_account(metadata: &SetupMetadata, remove_created_account: bool) -> Result<()> {

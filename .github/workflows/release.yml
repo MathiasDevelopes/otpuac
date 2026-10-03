@@ -17,6 +17,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   TARGET: x86_64-pc-windows-msvc
+  WIX_VERSION: 5.0.2
 
 jobs:
   windows:
@@ -63,9 +64,13 @@ jobs:
         shell: pwsh
         run: cargo test --locked --workspace --target $env:TARGET --verbose
 
+      - name: Install WiX Toolset
+        shell: pwsh
+        run: dotnet tool install --global wix --version $env:WIX_VERSION
+
       - name: Build installer
         shell: pwsh
-        run: .\scripts\build-installer.ps1 -Target $env:TARGET -AppVersion "${{ steps.version.outputs.version }}" -Locked
+        run: .\scripts\build-installer.ps1 -Target $env:TARGET -AppVersion "${{ steps.version.outputs.version }}" -WixVersion $env:WIX_VERSION -Locked
 
       - name: Package portable binaries
         shell: pwsh
@@ -78,14 +83,14 @@ jobs:
           Copy-Item "$releaseDir\otpuac-admin.exe" $portableDir
           Copy-Item "$releaseDir\otpuac-service.exe" $portableDir
           Copy-Item "$releaseDir\otpuac-setup.exe" $portableDir
-          Copy-Item "$releaseDir\otpuac_provider_rs.dll" $portableDir
+          Copy-Item "$releaseDir\otpuac_provider.dll" $portableDir
 
           Compress-Archive -Path "$portableDir\*" -DestinationPath "dist\OTPUAC-$version-windows-x64.zip" -Force
 
       - name: Generate checksums
         shell: pwsh
         run: |
-          $files = Get-ChildItem -Path "dist" -File | Where-Object { $_.Extension -in ".exe", ".zip" }
+          $files = Get-ChildItem -Path "dist" -File | Where-Object { $_.Extension -in ".msi", ".zip" }
           $lines = foreach ($file in $files) {
             $hash = Get-FileHash -Algorithm SHA256 $file.FullName
             "$($hash.Hash.ToLowerInvariant())  $($file.Name)"
@@ -98,7 +103,7 @@ jobs:
         with:
           name: otpuac-${{ steps.version.outputs.version }}-windows-x64
           path: |
-            dist/OTPUAC-Setup-${{ steps.version.outputs.version }}-x64.exe
+            dist/OTPUAC-${{ steps.version.outputs.version }}-x64.msi
             dist/OTPUAC-${{ steps.version.outputs.version }}-windows-x64.zip
             dist/SHA256SUMS.txt
           if-no-files-found: error
@@ -112,7 +117,7 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $version = "${{ steps.version.outputs.version }}"
           $assets = @(
-            "dist\OTPUAC-Setup-$version-x64.exe",
+            "dist\OTPUAC-$version-x64.msi",
             "dist\OTPUAC-$version-windows-x64.zip",
             "dist\SHA256SUMS.txt"
           )

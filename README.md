@@ -22,7 +22,7 @@ disable Microsoft credential providers.
 - Windows 10/11 x64.
 - An existing administrator account to approve installation.
 - A mobile authenticator app that supports TOTP.
-- A signed OTPUAC installer package from your approved release channel.
+- A signed OTPUAC MSI package from your approved release channel.
 
 Keep the built-in Microsoft credential providers enabled. They are the recovery
 path if the OTPUAC service, vault, or authenticator enrollment is unavailable.
@@ -32,7 +32,7 @@ path if the OTPUAC service, vault, or authenticator enrollment is unavailable.
 > [!CAUTION]
 > This project is entirely vibe coded, use at your own risk!
 
-Run the OTPUAC installer and approve the Windows elevation prompt with an
+Run the OTPUAC MSI and approve the Windows elevation prompt with an
 existing administrator account. During setup, choose:
 
 - the local managed administrator account name, for example `OTPUACAdmin`;
@@ -40,7 +40,8 @@ existing administrator account. During setup, choose:
 
 Setup creates the managed local administrator account, generates a strong random
 password, stores that password only in the DPAPI-protected vault, registers the
-service and Credential Provider, and opens the authenticator enrollment details.
+service and Credential Provider, and opens the authenticator enrollment details
+when you click Finish.
 
 Enroll the displayed TOTP secret or URI in the intended authenticator app.
 
@@ -57,7 +58,8 @@ window trigger a temporary lockout.
 
 Use Windows Apps & Features / Add or Remove Programs to uninstall OTPUAC.
 Uninstall removes the service, Credential Provider registration, OTPUAC data,
-and the managed local admin account when OTPUAC created it.
+and the managed local admin account when OTPUAC created it. Upgrading to a newer
+MSI keeps the managed account and vault, so the authenticator stays enrolled.
 
 For day-to-day administration, audit review, credential rotation, and recovery
 procedures, see [Operations](docs/operations.md).

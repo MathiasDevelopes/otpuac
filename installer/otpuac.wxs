@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OTPUAC Windows Installer package (WiX Toolset v5).
+
+  Files, the OTPUAC service, the Event Log source, and the Credential Provider
+  COM registration are declarative, so Windows Installer adds, repairs, rolls
+  back, and removes them on its own. Only the stateful work that Windows
+  Installer cannot describe runs as deferred custom actions through
+  otpuac-setup.exe: creating the managed local administrator account,
+  writing the DPAPI-protected vault, and removing both on uninstall.
+
+  Build with scripts\build-installer.ps1.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <?ifndef Version?>
+  <?define Version = "1.0.1"?>
+  <?endif?>
+  <?ifndef ArtifactsDir?>
+  <?define ArtifactsDir = "..\target\x86_64-pc-windows-msvc\release"?>
+  <?endif?>
+  <?define ProviderClsid = "{B6B6F0C2-4CCB-487E-9B58-681099865B10}"?>
+  <?define ProviderName = "OTPUAC Credential Provider"?>
+  <?define ServiceName = "OTPUAC"?>
+  <?define LegacyInnoAppId = "{D9E5C968-A5AA-4F9F-92A5-1D4B116AF2B7}_is1"?>
+
+  <Package
+    Name="OTPUAC"
+    Manufacturer="OTPUAC"
+    Version="$(Version)"
+    UpgradeCode="49C89EFE-1CF1-4063-8CC7-8A8787921CB4"
+    Scope="perMachine"
+    Compressed="yes"
+    InstallerVersion="500">
+
+    <SummaryInformation Description="OTPUAC TOTP-gated UAC credential provider" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of OTPUAC is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPCOMMENTS" Value="TOTP-gated UAC elevation through a managed local administrator account." />
+
+    <!-- Public, overridable from msiexec for unattended installs. -->
+    <Property Id="OTPUACACCOUNTNAME" Value="OTPUACAdmin" Secure="yes" />
+    <Property Id="OTPUACISSUER" Value="OTPUAC" Secure="yes" />
+    <Property Id="OTPUACENROLLMENTFILE" Secure="yes" />
+
+    <!-- The previous Inno Setup installer registered the same service and
+         account; installing over it would collide, so ask for its removal. -->
+    <Property Id="OTPUACLEGACYEXEINSTALL">
+      <RegistrySearch
+        Root="HKLM"
+        Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$(LegacyInnoAppId)"
+        Name="UninstallString"
+        Type="raw"
+        Bitness="always64" />
+    </Property>
+    <Launch
+      Condition="Installed OR NOT OTPUACLEGACYEXEINSTALL"
+      Message="An earlier OTPUAC setup (.exe) is installed. Uninstall it from Apps &amp; Features, then run this installer again." />
+
+    <Feature Id="Main" Title="OTPUAC" Level="1" AllowAbsent="no">
+      <ComponentGroupRef Id="OtpuacComponents" />
+    </Feature>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="OTPUAC" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="OtpuacComponents" Directory="INSTALLFOLDER">
+      <Component Id="AdminExe">
+        <File Id="OtpuacAdminExe" Source="$(ArtifactsDir)\otpuac-admin.exe" KeyPath="yes" />
+      </Component>
+
+      <Component Id="SetupExe">
+        <File Id="OtpuacSetupExe" Source="$(ArtifactsDir)\otpuac-setup.exe" KeyPath="yes" />
+      </Component>
+
+      <Component Id="Service">
+        <File Id="OtpuacServiceExe" Source="$(ArtifactsDir)\otpuac-service.exe" KeyPath="yes" />
+        <ServiceInstall
+          Name="$(ServiceName)"
+          DisplayName="OTPUAC Service"
+          Description="OTPUAC managed-admin TOTP unlock service"
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Arguments="run" />
+        <ServiceControl
+          Id="OtpuacServiceControl"
+          Name="$(ServiceName)"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+        <RegistryKey Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\EventLog\Application\$(ServiceName)">
+          <RegistryValue Name="EventMessageFile" Type="expandable" Value="[#OtpuacServiceExe]" />
+          <!-- EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE | EVENTLOG_INFORMATION_TYPE -->
+          <RegistryValue Name="TypesSupported" Type="integer" Value="7" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="Provider">
+        <File Id="OtpuacProviderDll" Source="$(ArtifactsDir)\otpuac_provider.dll" KeyPath="yes" />
+        <RegistryKey Root="HKCR" Key="CLSID\$(ProviderClsid)">
+          <RegistryValue Type="string" Value="$(ProviderName)" />
+          <RegistryKey Key="InprocServer32">
+            <RegistryValue Type="string" Value="[#OtpuacProviderDll]" />
+            <RegistryValue Name="ThreadingModel" Type="string" Value="Apartment" />
+          </RegistryKey>
+        </RegistryKey>
+        <RegistryValue
+          Root="HKLM"
+          Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\$(ProviderClsid)"
+          Type="string"
+          Value="$(ProviderName)" />
+      </Component>
+    </ComponentGroup>
+
+    <!--
+      Command lines for the deferred custom actions. Deferred actions only see
+      CustomActionData, which Windows Installer reads from the property named
+      after each action.
+    -->
+    <CustomAction
+      Id="SetOtpuacEnrollmentArg"
+      Property="OtpuacEnrollmentArg"
+      Value="--enrollment-file &quot;[OTPUACENROLLMENTFILE]&quot;" />
+    <CustomAction
+      Id="SetOtpuacProvision"
+      Property="OtpuacProvision"
+      Value="&quot;[#OtpuacSetupExe]&quot; install-managed --account-name &quot;[OTPUACACCOUNTNAME]&quot; --issuer &quot;[OTPUACISSUER]&quot; --program-data &quot;[CommonAppDataFolder]OTPUAC&quot; [OtpuacEnrollmentArg]" />
+    <CustomAction
+      Id="SetOtpuacProvisionRollback"
+      Property="OtpuacProvisionRollback"
+      Value="&quot;[#OtpuacSetupExe]&quot; uninstall --program-data &quot;[CommonAppDataFolder]OTPUAC&quot; --remove-data --remove-created-account" />
+    <CustomAction
+      Id="SetOtpuacCleanup"
+      Property="OtpuacCleanup"
+      Value="&quot;[#OtpuacSetupExe]&quot; uninstall --program-data &quot;[CommonAppDataFolder]OTPUAC&quot; --remove-data --remove-created-account" />
+
+    <!-- Creates the managed account and vault, or adopts an existing install. -->
+    <CustomAction
+      Id="OtpuacProvision"
+      BinaryRef="Wix4UtilCA_X64"
+      DllEntry="WixQuietExec"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+    <!-- Undoes a fresh provision if a later step of the same install fails. -->
+    <CustomAction
+      Id="OtpuacProvisionRollback"
+      BinaryRef="Wix4UtilCA_X64"
+      DllEntry="WixQuietExec"
+      Execute="rollback"
+      Impersonate="no"
+      Return="ignore" />
+    <!-- Deletes the managed account and the OTPUAC ProgramData directory. -->
+    <CustomAction
+      Id="OtpuacCleanup"
+      BinaryRef="Wix4UtilCA_X64"
+      DllEntry="WixQuietExec"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SetOtpuacEnrollmentArg" After="CostFinalize" Condition="OTPUACENROLLMENTFILE" />
+      <Custom Action="SetOtpuacProvision" After="SetOtpuacEnrollmentArg" />
+      <Custom Action="SetOtpuacProvisionRollback" After="SetOtpuacProvision" />
+      <Custom Action="SetOtpuacCleanup" After="SetOtpuacProvisionRollback" />
+
+      <!-- Provision after the files and service are in place but before the
+           service starts, so it never runs without a vault. -->
+      <Custom
+        Action="OtpuacProvisionRollback"
+        After="InstallServices"
+        Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Custom
+        Action="OtpuacProvision"
+        After="OtpuacProvisionRollback"
+        Condition="NOT REMOVE~=&quot;ALL&quot;" />
+
+      <!-- A major upgrade removes the old product first; keep the account
+           and vault so the new version adopts them. -->
+      <Custom
+        Action="OtpuacCleanup"
+        After="DeleteServices"
+        Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <UIRef Id="OtpuacUI" />
+  </Package>
+</Wix>
