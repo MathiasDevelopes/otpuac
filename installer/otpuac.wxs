@@ -3,8 +3,9 @@
   OTPUAC Windows Installer package (WiX Toolset v5).
 
   Files and the Credential Provider COM registration are declarative, so
-  Windows Installer adds, repairs, rolls back, and removes them on its own. Only the stateful work that Windows
-  Installer cannot describe runs as deferred custom actions through
+  Windows Installer adds, repairs, rolls back, and removes them on its own.
+  Only the stateful work that Windows Installer cannot describe runs as
+  deferred custom actions through
   otpuac-setup.exe: creating the managed local administrator account,
   writing the DPAPI-protected vault, and removing both on uninstall.
 
