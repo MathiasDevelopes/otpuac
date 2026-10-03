@@ -5,13 +5,11 @@
 This is a Rust workspace for OTPUAC, a Windows UAC credential-provider system.
 Workspace crates live under `crates/`:
 
-- `otpuac-core`: shared TOTP, vault, IPC contracts, and protection abstractions.
-- `otpuac-admin`: CLI for provisioning, enrollment, and TOTP verification.
-- `otpuac-service`: Windows service, named-pipe unlock handler, and audit logging.
-- `otpuac-setup`: MSI custom-action helper for the managed account, vault, and uninstall cleanup.
-- `otpuac-provider`: Rust Credential Provider COM DLL.
-- `otpuac-runtime`: OTPUAC runtime paths and default platform selections.
-- `otpuac-windows`: shared OTPUAC Windows helpers for pipes, DPAPI, COM, and UTF-16.
+- `otpuac-core`: the unlock decision, TOTP, vault, replay/lockout guard, and
+  the shared Win32 helpers (DPAPI, SDDL, UTF-16).
+- `otpuac-provider`: Rust Credential Provider COM DLL; calls `otpuac_core::unlock`.
+- `otpuac-setup`: CLI for install, enrollment, code checks, and uninstall; the
+  MSI runs it as custom actions.
 
 Production-facing documentation is in `docs/`, the WiX MSI source is in
 `installer/`, and helper scripts are in `scripts/`.

@@ -57,8 +57,6 @@ Assert-LastExitCode "cargo build"
 
 $artifactsDir = Join-Path "target\$Target" $Configuration
 $requiredArtifacts = @(
-    "otpuac-admin.exe",
-    "otpuac-service.exe",
     "otpuac-setup.exe",
     "otpuac_provider.dll"
 )

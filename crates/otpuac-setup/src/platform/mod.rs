@@ -1,8 +1,3 @@
-#[cfg(not(windows))]
-use otpuac_core::Result;
-#[cfg(not(windows))]
-use std::path::Path;
-
 #[cfg(windows)]
 mod windows;
 
@@ -10,37 +5,37 @@ mod windows;
 pub(crate) use windows::*;
 
 #[cfg(not(windows))]
-const UNSUPPORTED_SETUP_PLATFORM: &str =
-    "setup account and data management is only available on Windows";
+pub(crate) use unsupported::*;
 
+/// Lets the crate build and test elsewhere; every account or ACL change fails.
 #[cfg(not(windows))]
-pub(crate) fn create_local_admin_account(_username: &str, _password: &str) -> Result<String> {
-    unsupported()
-}
+mod unsupported {
+    use otpuac_core::{OtpuacError, Result};
+    use std::path::Path;
 
-#[cfg(not(windows))]
-pub(crate) fn delete_local_account(_username: &str) -> Result<()> {
-    unsupported()
-}
+    fn unsupported<T>() -> Result<T> {
+        Err(OtpuacError::Platform(
+            "account and data management is only available on Windows".to_string(),
+        ))
+    }
 
-#[cfg(not(windows))]
-pub(crate) fn hide_local_account_from_sign_in(_username: &str) -> Result<()> {
-    unsupported()
-}
+    pub(crate) fn create_local_admin_account(_username: &str, _password: &str) -> Result<()> {
+        unsupported()
+    }
 
-#[cfg(not(windows))]
-pub(crate) fn unhide_local_account_from_sign_in(_username: &str) -> Result<()> {
-    unsupported()
-}
+    pub(crate) fn delete_local_account(_username: &str) -> Result<()> {
+        unsupported()
+    }
 
-#[cfg(not(windows))]
-pub(crate) fn secure_program_data_dir(_path: &Path) -> Result<()> {
-    unsupported()
-}
+    pub(crate) fn hide_local_account_from_sign_in(_username: &str) -> Result<()> {
+        unsupported()
+    }
 
-#[cfg(not(windows))]
-fn unsupported<T>() -> Result<T> {
-    Err(otpuac_core::OtpuacError::UnsupportedPlatform(
-        UNSUPPORTED_SETUP_PLATFORM,
-    ))
+    pub(crate) fn unhide_local_account_from_sign_in(_username: &str) -> Result<()> {
+        unsupported()
+    }
+
+    pub(crate) fn secure_data_dir(_path: &Path) -> Result<()> {
+        unsupported()
+    }
 }

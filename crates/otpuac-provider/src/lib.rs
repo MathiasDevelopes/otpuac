@@ -1,7 +1,7 @@
 //! Rust Credential Provider implementation.
 //!
-//! The Windows COM implementation is isolated behind `cfg(windows)` so the
-//! core TOTP and IPC logic remains buildable and testable on other platforms.
+//! The Windows COM implementation is isolated behind `cfg(windows)`; the
+//! unlock decision itself lives in `otpuac-core` and is tested everywhere.
 
 pub const OTPUAC_PROVIDER_CLSID: &str = "{B6B6F0C2-4CCB-487E-9B58-681099865B10}";
 

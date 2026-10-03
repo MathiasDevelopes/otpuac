@@ -3,11 +3,8 @@
 ## Purpose
 
 `otpuac-provider` is the native Rust COM Credential Provider DLL used by the
-Windows UAC Credential UI path. Its release DLL is `otpuac_provider.dll`.
-
-It registers a stable CLSID, exposes the required COM entry points, displays a
-single OTPUAC tile, sends TOTP unlock requests to the OTPUAC service, and packs
-the approved managed credential for Windows.
+Windows UAC Credential UI path. Its release DLL is `otpuac_provider.dll`, and
+the MSI registers it under a stable CLSID.
 
 ## Scope
 
@@ -22,24 +19,18 @@ retain a recovery path.
 1. Windows loads the provider for a UAC prompt.
 2. The provider displays the TOTP input tile.
 3. The user submits the current authenticator code.
-4. The provider sends a framed `ProviderUnlockRequest` to `\\.\pipe\OTPUAC`.
-5. The service approves or denies the request.
-6. On approval, the provider calls `CredPackAuthenticationBufferW` and returns
-   the credential serialization to Windows.
-7. Plaintext password and TOTP buffers are cleared.
-
-## Boundaries
-
-- The provider does not read the vault.
-- The provider does not decrypt secrets.
-- The provider does not decide account policy.
-- The provider only serializes credentials returned by the service.
+4. The provider calls `otpuac_core::unlock` with `C:\ProgramData\OTPUAC`.
+5. On success it calls `CredPackAuthenticationBufferW` and returns the
+   credential serialization to Windows; otherwise it shows why.
+6. Plaintext password and TOTP buffers are cleared.
 
 ## Implementation Files
 
-- `windows_provider.rs`: COM object and UI field state.
-- `windows_provider/ipc.rs`: named-pipe client with bounded waits.
+- `windows_provider.rs`: DLL entry points.
+- `windows_provider/provider.rs`: `ICredentialProvider`.
+- `windows_provider/credential.rs`: `ICredentialProviderCredential` and the
+  submit path.
+- `windows_provider/fields.rs`: tile fields.
 - `windows_provider/credential_pack.rs`: Windows credential serialization.
-- `windows_provider/registry.rs`: COM and Credential Provider registration.
-- `windows_provider/hresult.rs`: Win32-to-HRESULT conversion.
-- `otpuac-windows/src/wide.rs`: shared UTF-16 allocation and clearing helpers.
+- `windows_provider/class_factory.rs`, `ids.rs`, `hresult.rs`, `wide.rs`: COM
+  plumbing.

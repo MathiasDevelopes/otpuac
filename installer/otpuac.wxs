@@ -2,9 +2,8 @@
 <!--
   OTPUAC Windows Installer package (WiX Toolset v5).
 
-  Files, the OTPUAC service, the Event Log source, and the Credential Provider
-  COM registration are declarative, so Windows Installer adds, repairs, rolls
-  back, and removes them on its own. Only the stateful work that Windows
+  Files and the Credential Provider COM registration are declarative, so
+  Windows Installer adds, repairs, rolls back, and removes them on its own. Only the stateful work that Windows
   Installer cannot describe runs as deferred custom actions through
   otpuac-setup.exe: creating the managed local administrator account,
   writing the DPAPI-protected vault, and removing both on uninstall.
@@ -20,7 +19,6 @@
   <?endif?>
   <?define ProviderClsid = "{B6B6F0C2-4CCB-487E-9B58-681099865B10}"?>
   <?define ProviderName = "OTPUAC Credential Provider"?>
-  <?define ServiceName = "OTPUAC"?>
   <?define LegacyInnoAppId = "{D9E5C968-A5AA-4F9F-92A5-1D4B116AF2B7}_is1"?>
 
   <Package
@@ -42,10 +40,9 @@
 
     <!-- Public, overridable from msiexec for unattended installs. -->
     <Property Id="OTPUACACCOUNTNAME" Value="OTPUACAdmin" Secure="yes" />
-    <Property Id="OTPUACISSUER" Value="OTPUAC" Secure="yes" />
     <Property Id="OTPUACENROLLMENTFILE" Secure="yes" />
 
-    <!-- The previous Inno Setup installer registered the same service and
+    <!-- The previous Inno Setup installer registered the same provider and
          account; installing over it would collide, so ask for its removal. -->
     <Property Id="OTPUACLEGACYEXEINSTALL">
       <RegistrySearch
@@ -68,36 +65,8 @@
     </StandardDirectory>
 
     <ComponentGroup Id="OtpuacComponents" Directory="INSTALLFOLDER">
-      <Component Id="AdminExe">
-        <File Id="OtpuacAdminExe" Source="$(ArtifactsDir)\otpuac-admin.exe" KeyPath="yes" />
-      </Component>
-
       <Component Id="SetupExe">
         <File Id="OtpuacSetupExe" Source="$(ArtifactsDir)\otpuac-setup.exe" KeyPath="yes" />
-      </Component>
-
-      <Component Id="Service">
-        <File Id="OtpuacServiceExe" Source="$(ArtifactsDir)\otpuac-service.exe" KeyPath="yes" />
-        <ServiceInstall
-          Name="$(ServiceName)"
-          DisplayName="OTPUAC Service"
-          Description="OTPUAC managed-admin TOTP unlock service"
-          Type="ownProcess"
-          Start="auto"
-          ErrorControl="normal"
-          Arguments="run" />
-        <ServiceControl
-          Id="OtpuacServiceControl"
-          Name="$(ServiceName)"
-          Start="install"
-          Stop="both"
-          Remove="uninstall"
-          Wait="yes" />
-        <RegistryKey Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\EventLog\Application\$(ServiceName)">
-          <RegistryValue Name="EventMessageFile" Type="expandable" Value="[#OtpuacServiceExe]" />
-          <!-- EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE | EVENTLOG_INFORMATION_TYPE -->
-          <RegistryValue Name="TypesSupported" Type="integer" Value="7" />
-        </RegistryKey>
       </Component>
 
       <Component Id="Provider">
@@ -129,15 +98,15 @@
     <CustomAction
       Id="SetOtpuacProvision"
       Property="OtpuacProvision"
-      Value="&quot;[#OtpuacSetupExe]&quot; install-managed --account-name &quot;[OTPUACACCOUNTNAME]&quot; --issuer &quot;[OTPUACISSUER]&quot; --program-data &quot;[CommonAppDataFolder]OTPUAC&quot; [OtpuacEnrollmentArg]" />
+      Value="&quot;[#OtpuacSetupExe]&quot; install --account-name &quot;[OTPUACACCOUNTNAME]&quot; --data-dir &quot;[CommonAppDataFolder]OTPUAC&quot; [OtpuacEnrollmentArg]" />
     <CustomAction
       Id="SetOtpuacProvisionRollback"
       Property="OtpuacProvisionRollback"
-      Value="&quot;[#OtpuacSetupExe]&quot; uninstall --program-data &quot;[CommonAppDataFolder]OTPUAC&quot; --remove-data --remove-created-account" />
+      Value="&quot;[#OtpuacSetupExe]&quot; uninstall --data-dir &quot;[CommonAppDataFolder]OTPUAC&quot;" />
     <CustomAction
       Id="SetOtpuacCleanup"
       Property="OtpuacCleanup"
-      Value="&quot;[#OtpuacSetupExe]&quot; uninstall --program-data &quot;[CommonAppDataFolder]OTPUAC&quot; --remove-data --remove-created-account" />
+      Value="&quot;[#OtpuacSetupExe]&quot; uninstall --data-dir &quot;[CommonAppDataFolder]OTPUAC&quot;" />
 
     <!-- Creates the managed account and vault, or adopts an existing install. -->
     <CustomAction
@@ -170,11 +139,10 @@
       <Custom Action="SetOtpuacProvisionRollback" After="SetOtpuacProvision" />
       <Custom Action="SetOtpuacCleanup" After="SetOtpuacProvisionRollback" />
 
-      <!-- Provision after the files and service are in place but before the
-           service starts, so it never runs without a vault. -->
+      <!-- Provision once the files are in place. -->
       <Custom
         Action="OtpuacProvisionRollback"
-        After="InstallServices"
+        After="InstallFiles"
         Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
       <Custom
         Action="OtpuacProvision"
@@ -185,7 +153,7 @@
            and vault so the new version adopts them. -->
       <Custom
         Action="OtpuacCleanup"
-        After="DeleteServices"
+        Before="RemoveFiles"
         Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 

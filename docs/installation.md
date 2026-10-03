@@ -17,14 +17,13 @@ recovery path if OTPUAC cannot unlock the managed credential.
 
 1. Run the OTPUAC MSI.
 2. Choose the managed local administrator account name.
-3. Choose the authenticator issuer label.
-4. Click Install and approve the Windows elevation prompt with an existing
+3. Click Install and approve the Windows elevation prompt with an existing
    administrator account.
-5. Click Finish to open the authenticator enrollment details in Notepad.
+4. Click Finish to open the authenticator enrollment details in Notepad.
 
 The installer creates the managed local administrator account, generates its
 password, stores the password in the DPAPI-protected OTPUAC vault, registers the
-Windows service, registers the Credential Provider, and writes the
+Credential Provider, and writes the
 authenticator enrollment details to a file in your temp folder. Setup deletes
 that file after you close Notepad.
 
@@ -37,7 +36,6 @@ authenticator again after installing the MSI.
 The MSI accepts these public properties:
 
 - `OTPUACACCOUNTNAME`: managed account name, default `OTPUACAdmin`.
-- `OTPUACISSUER`: authenticator issuer label, default `OTPUAC`.
 - `OTPUACENROLLMENTFILE`: optional path for the enrollment details file. Silent
   installs write no enrollment file unless this is set.
 
@@ -46,7 +44,7 @@ msiexec /i OTPUAC-1.0.1-x64.msi /qn OTPUACACCOUNTNAME=OTPUACAdmin OTPUACENROLLME
 ```
 
 Without an enrollment file, show the enrollment details later from an elevated
-prompt with `otpuac-admin show-enrollment`. Delete any enrollment file once the
+prompt with `otpuac-setup enrollment`. Delete any enrollment file once the
 authenticator is enrolled; it contains the TOTP secret.
 
 ## Enroll the Authenticator
@@ -72,9 +70,7 @@ Repeated failures trigger a temporary lockout.
 ## Installed Locations
 
 - Program files: `C:\Program Files\OTPUAC`
-- Vault and runtime state: `C:\ProgramData\OTPUAC`
-- Windows service: `OTPUAC`
-- Event Log source: `OTPUAC`
+- Vault and replay/lockout state: `C:\ProgramData\OTPUAC`
 - Managed account default: `OTPUACAdmin`
 
 The `C:\ProgramData\OTPUAC` directory should remain restricted to `SYSTEM` and
@@ -85,7 +81,6 @@ local Administrators.
 Use Windows Apps & Features / Add or Remove Programs and uninstall OTPUAC, or
 run `msiexec /x OTPUAC-<version>-x64.msi /qn`.
 
-The uninstaller removes the OTPUAC service, unregisters the Credential Provider,
-deletes OTPUAC data, and deletes the managed local administrator account when
-OTPUAC metadata says setup created it. Upgrading to a newer MSI keeps the
+The uninstaller unregisters the Credential Provider, deletes OTPUAC data, and
+deletes the managed local administrator account when setup created it. Upgrading to a newer MSI keeps the
 managed account and vault.

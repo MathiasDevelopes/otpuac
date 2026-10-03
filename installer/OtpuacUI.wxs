@@ -70,14 +70,12 @@
         <Control Id="Explanation" Type="Text" X="20" Y="54" Width="330" Height="40" NoPrefix="yes" Text="Setup creates this local account, generates a strong random password, adds it to the local Administrators group, and stores the password only in the DPAPI-protected OTPUAC vault." />
         <Control Id="AccountLabel" Type="Text" X="20" Y="102" Width="330" Height="12" Text="&amp;Local account name:" />
         <Control Id="AccountEdit" Type="Edit" X="20" Y="116" Width="200" Height="18" Property="OTPUACACCOUNTNAME" Text="{20}" />
-        <Control Id="IssuerLabel" Type="Text" X="20" Y="146" Width="330" Height="12" Text="&amp;Authenticator issuer label:" />
-        <Control Id="IssuerEdit" Type="Edit" X="20" Y="160" Width="200" Height="18" Property="OTPUACISSUER" Text="{64}" />
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="WelcomeDlg" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="SpawnDialog" Value="OtpuacAccountRequiredDlg" Condition="NOT OTPUACACCOUNTNAME OR NOT OTPUACISSUER" />
-          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="OTPUACACCOUNTNAME AND OTPUACISSUER" />
+          <Publish Event="SpawnDialog" Value="OtpuacAccountRequiredDlg" Condition="NOT OTPUACACCOUNTNAME" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="OTPUACACCOUNTNAME" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" />
@@ -85,7 +83,7 @@
       </Dialog>
 
       <Dialog Id="OtpuacAccountRequiredDlg" Width="260" Height="85" Title="!(loc.WelcomeDlg_Title)" NoMinimize="yes">
-        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="30" NoPrefix="yes" Text="Enter both a local account name and an authenticator issuer label." />
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="30" NoPrefix="yes" Text="Enter a local account name." />
         <Control Id="OK" Type="PushButton" X="102" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
           <Publish Event="EndDialog" Value="Return" />
         </Control>

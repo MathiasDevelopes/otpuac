@@ -80,8 +80,6 @@ jobs:
           $portableDir = "dist\otpuac-$version-windows-x64"
 
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-          Copy-Item "$releaseDir\otpuac-admin.exe" $portableDir
-          Copy-Item "$releaseDir\otpuac-service.exe" $portableDir
           Copy-Item "$releaseDir\otpuac-setup.exe" $portableDir
           Copy-Item "$releaseDir\otpuac_provider.dll" $portableDir
 

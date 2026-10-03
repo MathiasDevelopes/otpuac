@@ -15,12 +15,12 @@ use windows_sys::Win32::UI::Shell::CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION 
 
 use super::hresult::{hresult_from_last_error, hresult_from_win32};
 use super::ids::CLSID_OTPUAC;
-use otpuac_windows::wide::wide_null;
+use otpuac_core::win::wide_null;
 use zeroize::Zeroize;
 
 pub(super) unsafe fn pack_credential(
     qualified_username: &str,
-    password: &mut str,
+    password: &str,
     use_wow_buffer: bool,
     serialization: *mut CredentialProviderCredentialSerialization,
 ) -> HRESULT {

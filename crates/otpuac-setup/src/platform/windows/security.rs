@@ -1,7 +1,6 @@
-use super::error::{last_error, win_error};
+use super::{last_error, win_error};
+use otpuac_core::win::{security_descriptor_from_sddl, wide_null};
 use otpuac_core::Result;
-use otpuac_windows::system::security_descriptor_from_sddl;
-use otpuac_windows::wide::wide_null_os;
 use std::path::Path;
 use std::ptr;
 use windows_sys::Win32::Security::Authorization::{SetNamedSecurityInfoW, SE_FILE_OBJECT};
@@ -9,8 +8,8 @@ use windows_sys::Win32::Security::{
     GetSecurityDescriptorDacl, ACL, DACL_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
 };
 
-pub(crate) fn secure_program_data_dir(path: &Path) -> Result<()> {
-    let path_w = wide_null_os(path.as_os_str());
+pub(crate) fn secure_data_dir(path: &Path) -> Result<()> {
+    let path_w = wide_null(path);
     let descriptor = security_descriptor_from_sddl("D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)")
         .map_err(|code| win_error("ConvertStringSecurityDescriptorToSecurityDescriptorW", code))?;
 

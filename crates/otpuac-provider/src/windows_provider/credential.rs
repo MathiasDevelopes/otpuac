@@ -5,10 +5,10 @@ use super::ids::{
     guid_eq, IID_ICREDENTIAL_PROVIDER_CREDENTIAL, IID_ICREDENTIAL_PROVIDER_CREDENTIAL2,
     IID_IUNKNOWN,
 };
-use super::ipc::request_unlock;
+use super::wide::{duplicate_wide_to_com, wide_ptr_to_vec};
 use super::{dll_add_ref, dll_release};
-use otpuac_core::{ManagedAccount, UnlockDecision};
-use otpuac_windows::wide::{duplicate_wide_to_com, wide_null, wide_ptr_to_vec};
+use otpuac_core::win::wide_null;
+use otpuac_core::{default_data_dir, now_unix, unlock};
 use std::ffi::c_void;
 use std::mem::zeroed;
 use std::ptr;
@@ -27,6 +27,7 @@ use zeroize::{Zeroize, Zeroizing};
 const STATUS_ENTER_CODE: &str = "Enter the current authenticator code";
 const STATUS_CODE_ACCEPTED: &str = "Code accepted";
 const STATUS_PACK_FAILED: &str = "Could not pack the managed credential";
+const STATUS_UNLOCK_FAILED: &str = "OTPUAC could not unlock the managed credential";
 
 #[repr(C)]
 pub(super) struct Credential {
@@ -359,23 +360,17 @@ unsafe extern "system" fn credential_get_serialization(
         return S_OK;
     }
 
-    let unlock_result = request_unlock(code.as_str());
+    let unlock_result = unlock(&default_data_dir(), &code, now_unix());
     clear_totp_code(this);
 
     match unlock_result {
-        Ok(UnlockDecision::Approved {
-            username,
-            domain,
-            mut password,
-        }) => {
-            let qualified = ManagedAccount { username, domain }.label();
+        Ok(credential) => {
             let hr = pack_credential(
-                &qualified,
-                &mut password,
+                &credential.account.label(),
+                &credential.password,
                 (*this).cred_ui_flags & CREDUIWIN_PACK_32_WOW != 0,
                 serialization,
             );
-            password.zeroize();
             if hr == S_OK {
                 *response = CPGSR_RETURN_CREDENTIAL_FINISHED;
                 set_status(this, STATUS_CODE_ACCEPTED);
@@ -384,9 +379,12 @@ unsafe extern "system" fn credential_get_serialization(
             }
             hr
         }
-        Ok(UnlockDecision::Denied { message, .. })
-        | Ok(UnlockDecision::Error { message })
-        | Err(message) => {
+        Err(err) => {
+            let message = if err.is_denial() {
+                err.to_string()
+            } else {
+                STATUS_UNLOCK_FAILED.to_string()
+            };
             set_error_status(this, &message, status_text, status_icon);
             S_OK
         }
