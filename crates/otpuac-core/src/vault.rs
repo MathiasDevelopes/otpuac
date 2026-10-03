@@ -163,7 +163,7 @@ pub(crate) mod tests {
             format!(
                 r#"{{"scheme":"{}","data_base64":"{}"}}"#,
                 protect::SCHEME,
-                BASE64.encode(plain.as_bytes())
+                BASE64.encode(&protect::protect(plain.as_bytes()).unwrap())
             )
         };
         fs::write(
